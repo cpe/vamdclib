@@ -34,7 +34,11 @@ class NoContentError(Exception):
     def __init__(self, expr):
         self.expr = expr
         self.msg = "No content to perform operation on"
-        
+
+class NodeDoesNotExistError(Exception):
+    def __init__(self):
+        self.msg = "Node does not exist"
+
 class Request(object):
     """
     A Request instance represents one request to a specified VAMDC database node. 
@@ -63,6 +67,11 @@ class Request(object):
         """
         self.status = 0
         self.reason = "INIT"
+
+        # Try to identify node if only specified by a string
+        if type(node) == str:
+            nl = nodes.Nodelist()
+            node = nl.findnode(node)
 
         if type(node) == nodes.Node:
             self.node = node
@@ -268,3 +277,51 @@ class Request(object):
 
 
 
+def getspecies(node, output = 'struct'):
+    """
+    Queries a database and returns its species
+
+    :param node: Database-node that will be queried
+    :type node: str or nodes.Node
+    :param output: Specifies if the output combines ('flat') or separates
+                   ('struct') dictionary of atoms and molecules 
+    :type output: str
+
+    returns dictionary with species
+    """
+    r = Request()
+    r.setnode(node)
+    data = r.getspecies()
+    if output == 'flat':
+        ret_value = {}
+        for stype in ['Atoms', 'Molecules']:
+            try:
+                ret_value.update(data.data[stype])
+            except:
+                pass
+    else:
+        ret_value = {stype: data.data[stype] for stype in ['Atoms', 'Molecules']}
+
+    return ret_value
+
+def gettransitions(node, speciesid):
+    """
+    Queries a database for radiative transitions of a specie
+
+    :param node: Database-node that will be queried
+    :type node: str or nodes.Node
+    :param speciesid: SpeciesID / Identifier of the species 
+    :type speciesid: str or int
+    """
+    # remove database identifier from string if specified
+    if type(speciesid) == str:
+        speciesid = int(speciesid[speciesid.find('-')+1:])
+
+    querystring = "SELECT RadiativeTransitions WHERE SpeciesID = %d" % speciesid
+
+    r = Request()
+    r.setnode(node)
+    r.setquery(querystring)
+    result = r.dorequest()
+
+    return result
