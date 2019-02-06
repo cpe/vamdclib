@@ -29,8 +29,12 @@ class PFrow(object):
         self.name = None
         self.species_id = None
         self.vamdc_species_id = None
+        self.stoichiometricformula = None
+        self.ordinarystructuralformula = None
+        self.chemicalname = None
         self.hfs = None
         self.nsi = None
+        self.vibstate = None
         self.comment = None
         self.recommendation = None
         self.resource_id = None
@@ -52,6 +56,42 @@ class PFrow(object):
                 self.__dict__.update({ck: kwds[ck]})
             else:
                 setattr(self, ck, kwds[ck])
+
+
+class TransitionRow(object):
+    """
+    Database entry for transition table.
+    """
+    def __init__(self, **kwds):
+        self.pf_id = None # Id of the corresponding entry in partition functions
+        self.name = None
+        self.frequency = None
+        self.intensity = None
+        self.einsteinA = None
+        self.uncertainty = None
+        self.energyLower = None
+        self.upperStateDegeneracy = None
+        self.nuclearSpinIsomer = None
+        self.hfs = None
+        self.case = None
+        self.upperStateQuantumNumbers = None
+        self.lowerStateQuantumNumbers = None
+
+        # Push any keywords to attributes of this instance
+        self.update(**kwds)
+
+
+    def update(self, **kwds):
+        """
+        Update the instance with a dictionary containing its new
+        properties.
+        """
+        for ck in kwds.keys():
+            if ck in vars(self).keys():
+                self.__dict__.update({ck: kwds[ck]})
+            else:
+                setattr(self, ck, kwds[ck])
+
 
 
 #DATABASE_FILE = "cdms_sqlite.db"
@@ -128,8 +168,12 @@ class Database(object):
         PF_Name TEXT,
         PF_VamdcSpeciesID TEXT,
         PF_SpeciesID TEXT,
+        PF_StoichiometricFormula TEXT,
+        PF_OrdinaryStructuralFormula TEXT,
+        PF_ChemicalName TEXT,
         PF_NuclearSpinIsomer TEXT,
         PF_HFS TEXT,
+        PF_VibState TEXT,
         PF_1_072 REAL,
         PF_1_148 REAL,
         PF_1_230 REAL,
@@ -274,17 +318,33 @@ class Database(object):
         """
         cursor = self.conn.cursor()
 
-        cursor.execute("INSERT INTO Partitionfunctions \
-                         (PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
-                          PF_HFS, PF_NuclearSpinIsomer, PF_Recommendation, \
-                          PF_Comment, PF_ResourceID, PF_URL, PF_Status, \
-                          PF_Createdate, PF_Checkdate) \
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        cursor.execute("""INSERT INTO Partitionfunctions 
+                         (PF_Name, 
+                          PF_SpeciesID, 
+                          PF_VamdcSpeciesID,
+                          PF_StoichiometricFormula,
+                          PF_OrdinaryStructuralFormula,
+                          PF_ChemicalName,
+                          PF_HFS, 
+                          PF_NuclearSpinIsomer, 
+                          PF_VibState,
+                          PF_Recommendation, 
+                          PF_Comment, 
+                          PF_ResourceID, 
+                          PF_URL, 
+                          PF_Status, 
+                          PF_Createdate, 
+                          PF_Checkdate) 
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (pfrow.name,
                          pfrow.species_id,
                          pfrow.vamdc_species_id,
+                         pfrow.stoichiometricformula,
+                         pfrow.ordinarystructuralformula,
+                         pfrow.chemicalname,
                          pfrow.hfs,
                          pfrow.nsi,
+                         pfrow.vibstate,
                          pfrow.recommendation,
                          pfrow.comment,
                          pfrow.resource_id,
@@ -394,7 +454,11 @@ class Database(object):
                     pfrow = PFrow(species_id = id)
                     if id in species['Atoms'].keys():
                         print "ID: %s" % species['Atoms'][id]
-                        pfrow.name = self.createatomname(species['Atoms'][id])
+                        name = self.createatomname(species['Atoms'][id])
+                        pfrow.name = name
+                        pfrow.stoichiometricformula = name
+                        pfrow.ordinarystructuralformula = name
+                        pfrow.chemicalname = name
 
                         if not species['Atoms'][id].__dict__.has_key('Comment'):
                             pfrow.comment = ""
@@ -405,6 +469,11 @@ class Database(object):
                     else:
                         print "ID: %s" % species['Molecules'][id]
                         formula = str(species['Molecules'][id].OrdinaryStructuralFormula)
+                        pfrow.ordinarystructuralformula = formula
+                        pfrow.stoichiometricformula = \
+                                str(species['Molecules'][id].StoichiometricFormula).strip()
+                        pfrow.chemicalname = \
+                                str(species['Molecules'][id].ChemicalName).strip()
                         pfrow.name = formula
                         pfrow.comment = "%s" % (species['Molecules'][id].Comment)
                         pfrow.vamdc_species_id = "%s" % (species['Molecules'][id].VAMDCSpeciesID)
@@ -463,7 +532,7 @@ class Database(object):
 
 
     ##********************************************************************
-    def insert_species_transitions(self, species, node, update=False):
+    def update_db_species(self, species, node):
         """
         Checks the VAMDC database node for new species and inserts them into the local database
 
@@ -473,14 +542,20 @@ class Database(object):
                                species-id will be deleted before the insert is performed.
         """
 
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT PF_SpeciesID FROM Partitionfunctions where \
-                       PF_Status = ?", ("new") )
-        rows = cursor.fetchall()
-
-        for row in rows:
-            update_species_list.append(row[0])
-
+#        cursor = self.conn.cursor()
+#        cursor.execute("SELECT PF_SpeciesID FROM Partitionfunctions where \
+#                       PF_Status = ?", ("new") )
+#        rows = cursor.fetchall()
+#
+#        for row in rows:
+#            update_species_list.append(row[0])
+        if node:
+            resourceID = node.identifier
+            url = node.url
+        else:
+            resourceID = 'NULL'
+            url = 'NULL'
+ 
         #----------------------------------------------------------
         # Create a list of species for which transitions will be
         # retrieved and inserted in the database.
@@ -512,25 +587,29 @@ class Database(object):
                 speciesid = specie.SpeciesID
                 vamdcspeciesid = specie.VAMDCSpeciesID
 #                formula = specie.OrdinaryStructuralFormula
-            else:   
-                # check if the specie is identified by its inchikey
-                try:
-                    if isinstance(specie, str) and len(specie) == 27:
-                        vamdcspeciesid = specie
-                        speciesid = None
-                except:
-                    print "Specie is not of wrong type"
-                    print "Type Molecule or string (Inchikey) is allowed"
-                    continue
+            # check if the specie is identified by its inchikey
+            elif isinstance(specie, str) and len(specie) == 27:
+                vamdcspeciesid = specie
+                speciesid = None
+            else:
+                vamdcspeciesid = None
+                speciesid = specie
+
+
             if speciesid:
                 print "Processing: {speciesid}".format(speciesid = speciesid)
+                print "Be aware that not all VAMDC-Nodes are able to query \
+                        SpeciesID's"
+                # Create query string
+                query_string = "SELECT ALL WHERE SpeciesID='%s'" % speciesid
             else:
                 print "Processing: {vamdcspeciesid}".format(vamdcspeciesid = vamdcspeciesid)
-                
-
-            try:
                 # Create query string
                 query_string = "SELECT ALL WHERE VAMDCSpeciesID='%s'" % vamdcspeciesid
+               
+            # Query the database. The query uses the vamdcspeciesid (InChI-Key),
+            # because this is mandatory for all databases (SpecieID is not).
+            try:
                 request = r.Request()
 
                 # Get data from the database
@@ -542,8 +621,70 @@ class Database(object):
             except Exception, e:
                 print " -- Error %s: Could not fetch and process data" % e.strerror
                 continue    
-            #---------------------------------------
+ 
+            if vamdcspeciesid is None:
+                if result.data['Molecules'].has_key(speciesid):
+                    vamdcspeciesid = \
+                            result.data['Molecules'][speciesid].VAMDCSpeciesID
+                elif result.data['Atoms'].has_key(speciesid):
+                    vamdcspeciesid = \
+                            result.data['Atoms'][speciesid].VAMDCSpeciesID
+                else:
+                    print "Could not determine VAMDCSpeciesID"
 
+            #-----------------------------------------------------
+            # Check what is in the database for this species
+            # and create a look-up table for id to reduce database traffic
+            cursor_specie = self.conn.cursor()
+            species_dict_id = {}
+            cursor_specie.execute("""SELECT PF_ID, 
+                                            PF_SpeciesID, 
+                                            PF_VamdcSpeciesID,  
+                                            PF_Name, 
+                                            PF_NuclearSpinIsomer, 
+                                            PF_HFS,
+                                            PF_VibState,
+                                            PF_Status 
+                                     FROM Partitionfunctions 
+                                     WHERE PF_VamdcSpeciesID='{vsi}'""".format(vsi = vamdcspeciesid) )
+            rows_specie = cursor_specie.fetchall()
+            for row_specie in rows_specie:
+                species_dict_id[(row_specie[1], 
+                                 row_specie[4], 
+                                 row_specie[5],
+                                 row_specie[6])] = row_specie[0]
+            cursor_specie.close()
+            #-----------------------------------------
+            cursor = self.conn.cursor()
+            if speciesid is not None:
+                cursor.execute("""SELECT PF_ID FROM Partitionfunctions
+                                  WHERE
+                               PF_SpeciesID='{si}'""".format(si=speciesid))
+            else:
+                cursor.execute("""SELECT PF_ID FROM Partitionfunctions
+                                  WHERE PF_VamdcSpeciesID='{si}'
+                                  AND PF_ResourceID='{rid}'
+                               """.format(si=vamdcspeciesid, rid=resourceID))
+                print("""SELECT PF_ID FROM Partitionfunctions
+                                  WHERE PF_VamdcSpeciesID='{si}'
+                                  AND PF_ResourceID='{rid}'
+                               """.format(si=vamdcspeciesid, rid=resourceID))
+
+
+
+
+            rows =  cursor.fetchall()
+            for row in rows:                    
+                print("Process %d" % row[0])
+                cursor.execute("""UPDATE Partitionfunctions SET
+                                  PF_Status='Processing Update'
+                                  WHERE PF_ID={pid}""".format(pid=row[0]))
+                cursor.execute("""DELETE FROM Transitions WHERE
+                                  T_PF_ID={pid}""".format(pid=row[0]))
+
+            cursor.close()
+
+            #---------------------------------------
             cursor = self.conn.cursor()
             cursor.execute('BEGIN TRANSACTION')
 
@@ -575,14 +716,17 @@ class Database(object):
                     if id in result.data['Atoms'].keys():
                         is_atom = True
                         is_molecule = False
-                        atomname = self.createatomname(result.data['Atoms'][id])
+                        atomname = \
+                                self.createatomname(result.data['Atoms'][id]).strip()
                     elif id in result.data['Molecules'].keys():
                         is_atom = False
                         is_molecule = True
-                        formula = str(result.data['Molecules'][id].OrdinaryStructuralFormula)
+                        formula = \
+                                str(result.data['Molecules'][id].OrdinaryStructuralFormula).strip()
 
                         # Get string which identifies the vibrational states involved in the transition
-                        t_state = self.getvibstatelabel(upper_state, lower_state)
+                        t_state = self.getvibstatelabel(upper_state, \
+                                                        lower_state).strip()
                         
                     else:
                         continue
@@ -594,7 +738,7 @@ class Database(object):
                     try:
                         for pc in result.data['RadiativeTransitions'][trans].ProcessClass:
                             if str(pc)[:3] == 'hyp':
-                                t_hfs = str(pc)
+                                t_hfs = str(pc).strip()
                     except Exception, e:
                             print "Error: %s", e
 
@@ -616,7 +760,7 @@ class Database(object):
 
                     # Get nuclear spin isomer (ortho/para) if present
                     try:
-                        nsiName = upper_state.NuclearSpinIsomerName
+                        nsiName = upper_state.NuclearSpinIsomerName.strip()
                     except AttributeError:
                         nsiName = None
 
@@ -639,10 +783,10 @@ class Database(object):
                         # remove all blanks in the name
                         t_name = t_name.replace(' ','')
                         # check if name is in the list of forbidden names and add counter if so
-                        i = 1
-                        while t_name in names_black_list:
-                            t_name = "%s#%d" % (t_name.split('#')[0], i)
-                            i += 1
+#                        i = 1
+#                        while t_name in names_black_list:
+#                            t_name = "%s#%d" % (t_name.split('#')[0], i)
+#                            i += 1
                         # update list of distinct species names.
                         if id in species_names:
                             if not t_name in species_names[id]:
@@ -656,31 +800,108 @@ class Database(object):
                             lowerStateEnergy = float(lower_state.StateEnergyValue) - nsiEnergyOffset
                         else:
                             lowerStateEnergy = float(lower_state.StateEnergyValue)
-                            
-                        
+
+                        # -------------------------------------------------------------------------------------------------
+                        # GET ID of the PF_Entry:
+                        # Insert Specie in Partitionfunction if it does not exist there, 
+                        # otherwise get id only
+
+                        db_id = species_dict_id.get( (id, nsiName, t_hfs, t_state) )
+
+                        if db_id is None:
+                            try:
+                                if is_atom:
+                                    if not result.data['Atoms'][id].__dict__.has_key('Comment'):
+                                        result.data['Atoms'][id].Comment = ""
+                                    formula = "%s" % \
+                                            (result.data['Atoms'][id].ChemicalElementSymbol + \
+                                             result.data['Atoms'][id].ChemicalElementNuclearCharge)
+
+                                    cursor.execute("""INSERT INTO Partitionfunctions 
+                                                   (PF_Name, 
+                                                    PF_SpeciesID, 
+                                                    PF_VamdcSpeciesID,
+                                                    PF_StoichiometricFormula,
+                                                    PF_OrdinaryStructuralFormula,
+                                                    PF_Comment, 
+                                                    PF_ResourceID, 
+                                                    PF_URL,
+                                                    PF_Checkdate) VALUES
+                                                   (?,?,?,?,?,?,?,?,?)""",
+                                                   ("%s" % t_name,
+                                                    id,
+                                                    "%s" % (result.data['Atoms'][id].VAMDCSpeciesID),
+                                                    formula,
+                                                    formula,
+                                                    "%s" % (result.data['Atoms'][id].Comment),
+                                                    resourceID,
+                                                    "%s%s%s" % (url, "sync?LANG=VSS2&amp;REQUEST=doQuery&amp;FORMAT=XSAMS&amp;QUERY=Select+*+where+SpeciesID%3D", id),
+                                                    datetime.now(), ))
+                                else:
+                                    cursor.execute("""INSERT INTO Partitionfunctions 
+                                                   (PF_Name, 
+                                                    PF_SpeciesID, 
+                                                    PF_VamdcSpeciesID,
+                                                    PF_StoichiometricFormula,
+                                                    PF_OrdinaryStructuralFormula,
+                                                    PF_ChemicalName,
+                                                    PF_HFS, 
+                                                    PF_NuclearSpinIsomer,
+                                                    PF_VibState,
+                                                    PF_Comment, 
+                                                    PF_ResourceID, 
+                                                    PF_URL,
+                                                    PF_Checkdate) VALUES
+                                                   (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                                   ("%s" % t_name,
+                                                    id,
+                                                    "%s" % (result.data['Molecules'][id].VAMDCSpeciesID),
+                                                    "%s" % (result.data['Molecules'][id].StoichiometricFormula),
+                                                    "%s" % (result.data['Molecules'][id].OrdinaryStructuralFormula),
+                                                    "%s" % (result.data['Molecules'][id].ChemicalName),
+                                                    t_hfs,
+                                                    nsiName,
+                                                    t_state,
+                                                    "%s" % (result.data['Molecules'][id].Comment),
+                                                    resourceID,
+                                                    "%s%s%s" % (url, "sync?LANG=VSS2&amp;REQUEST=doQuery&amp;FORMAT=XSAMS&amp;QUERY=Select+*+where+SpeciesID%3D", id),
+                                                    datetime.now(), ))
+
+                                db_id = cursor.lastrowid
+                                species_dict_id[(id, nsiName, t_hfs, t_state)] = db_id
+                            except sqlite3.Error as e:
+                                print "An error occurred:", e.args[0]
+                            except Exception as e:
+                                print "An error occurred:", e.args[0]
+                                print result.data['Molecules'].keys()
+                        # ------------------------------------------------------------------------------
                         # Insert transition into database
                         try:
                             cursor.execute("""INSERT INTO Transitions (
-                            T_Name,
-                            T_Frequency,
-                            T_EinsteinA,
-                            T_Uncertainty,
-                            T_EnergyLower,
-                            T_UpperStateDegeneracy,
-                            T_HFS,
-                            T_UpperStateQuantumNumbers,
-                            T_LowerStateQuantumNumbers) VALUES
-                            (?, ?,?,?,?, ?,?, ?,?)""",
-                                           (t_name,
-                                            "%lf" % frequency,
-                                            "%g" % float(result.data['RadiativeTransitions'][trans].TransitionProbabilityA),
-                                            uncertainty, "%lf" % lowerStateEnergy,
-                                            weight,
-                                            #upper_state.QuantumNumbers.case,
-                                            t_hfs,
-                                            str(upper_state.QuantumNumbers.qn_string),
-                                            str(lower_state.QuantumNumbers.qn_string),
-                                            ))
+                                T_PF_ID,
+                                T_Name,
+                                T_Frequency,
+                                T_EinsteinA,
+                                T_Uncertainty,
+                                T_EnergyLower,
+                                T_UpperStateDegeneracy,
+                                T_HFS,
+                                T_UpperStateQuantumNumbers,
+                                T_LowerStateQuantumNumbers) VALUES
+                                (?,?,?,?,?,?,?,?,?,?)""",
+                                (
+                                  db_id,
+                                  t_name,
+                                  "%lf" % frequency,
+                                  "%g" %
+                                  float(result.data['RadiativeTransitions'][trans].TransitionProbabilityA),
+                                  uncertainty, "%lf" % lowerStateEnergy,
+                                  weight,
+                                  #upper_state.QuantumNumbers.case,
+                                  t_hfs,
+                                  str(upper_state.QuantumNumbers.qn_string),
+                                  str(lower_state.QuantumNumbers.qn_string),
+                                 ))
                             num_transitions[t_name] += 1
                         except Exception, e:
                             print "Transition has not been inserted:\n Error: %s" % e
@@ -692,111 +913,46 @@ class Database(object):
             for id in species_with_error:
                 print " -- Species {id} has not been inserted due to an error ".format(id=str(id))
                 try:
-                    for name in species_names[id]:
-                        cursor.execute("DELETE FROM Transitions WHERE T_Name=?", (str(name),))
-                        print " --    {name} ".format(name=str(name))
+                    cursor.execute("""DELETE FROM Transitions WHERE
+                                   T_SpeciesID=?""", (str(id),))
                 except:
                     pass
 
             #------------------------------------------------------------------------------------------------------
             # insert specie in Partitionfunctions (header) table
-            if node:
-                resourceID = node.identifier
-                url = node.url
+               
+            # -------------------------------------------------------------------
+            # Update Partitionfunctions
+            if id in result.data['Atoms'].keys():
+                for temperature in Temperatures:
+                    pf_values = specmodel.calculate_partitionfunction(result.data['States'], temperature = temperature)
+                    try:
+                        field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
+                        sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? " % field
+                        cursor.execute(sql, (pf_values[id], id))
+                    except Exception, e:
+                        print "SQL-Error: %s " % sql
+                        print pf_value, id
+                        print "Error: %d: %s" % (e.args[0], e.args[1])
             else:
-                resourceID = 'NULL'
-                url = 'NULL'
-                
-
-            # Insert molecules
-            for id in species_names:
-                if id in species_with_error:
-                    continue
-                for name in species_names[id]:
-                    # determine hyperfine-structure affix and nuclear spin isomer affix
-                    try:
-                        hfs = ''
-                        nsi = ''
-                        for affix in name.split("#")[0].split(';',2)[2].split(";"):
-                            if affix.strip()[:3] == 'hyp':
-                                hfs = affix.strip()
-                            else:
-                                # if affix does not identify hyperfine structure
-                                # it identifies the nuclear spin isomer
-                                nsi = affix.strip()
-                    except:
-                        hfs = ''
-
-                    # Insert row in partitionfunctions
-                    try:
-                        if id in result.data['Atoms']:
-                            if not result.data['Atoms'][id].__dict__.has_key('Comment'):
-                                result.data['Atoms'][id].Comment = ""
-                            cursor.execute("INSERT INTO Partitionfunctions \
-                                           (PF_Name, PF_SpeciesID, \
-                                            PF_VamdcSpeciesID, PF_Comment, \
-                                            PF_ResourceID, PF_URL, PF_Checkdate) VALUES (?,?,?,?,?,?,?)",
-                                           ("%s" % name,
-                                            id,
-                                            "%s" % (result.data['Atoms'][id].VAMDCSpeciesID),
-                                            "%s" % (result.data['Atoms'][id].Comment),
-                                            resourceID,
-                                            "%s%s%s" % (url, "sync?LANG=VSS2&amp;REQUEST=doQuery&amp;FORMAT=XSAMS&amp;QUERY=Select+*+where+SpeciesID%3D", id),
-                                            datetime.now(), ))
+                try:
+                    for pfs in result.data['Molecules'][id].PartitionFunction:
+                        if not pfs.__dict__.has_key('NuclearSpinIsomer'):
+                            nsi = ''
                         else:
-                            cursor.execute("INSERT INTO Partitionfunctions \
-                                           (PF_Name, PF_SpeciesID, \
-                                            PF_VamdcSpeciesID, PF_HFS, \
-                                            PF_NuclearSpinIsomer, PF_Comment, \
-                                            PF_ResourceID, PF_URL, PF_Checkdate) VALUES (?,?,?,?,?,?,?,?,?)",
-                                           ("%s" % name,
-                                            id,
-                                            "%s" % (result.data['Molecules'][id].VAMDCSpeciesID),
-                                            hfs,
-                                            nsi, 
-                                            "%s" % (result.data['Molecules'][id].Comment),
-                                            resourceID,
-                                            "%s%s%s" % (url, "sync?LANG=VSS2&amp;REQUEST=doQuery&amp;FORMAT=XSAMS&amp;QUERY=Select+*+where+SpeciesID%3D", id),
-                                            datetime.now(), ))
-                    except sqlite3.Error as e:
-                        print "An error occurred:", e.args[0]
-                    except Exception as e:
-                        print "An error occurred:", e.args[0]
-                        print result.data['Molecules'].keys()
-
-                # Update Partitionfunctions
-                if id in result.data['Atoms'].keys():
-                    for temperature in Temperatures:
-                        pf_values = specmodel.calculate_partitionfunction(result.data['States'], temperature = temperature)
-                        try:
-                            field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
-                            sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? " % field
-                            cursor.execute(sql, (pf_values[id], id))
-                        except Exception, e:
-                            print "SQL-Error: %s " % sql
-                            print pf_value, id
-                            print "Error: %d: %s" % (e.args[0], e.args[1])
-                else:
-                    try:
-                        for pfs in result.data['Molecules'][id].PartitionFunction:
-                            if not pfs.__dict__.has_key('NuclearSpinIsomer'):
-                                nsi = ''
-                            else:
-                                nsi = pfs.NuclearSpinIsomer  
-                            for temperature in pfs.values.keys():
-
-                                try:
-                                    field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
-                                    sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? AND IFNULL(PF_NuclearSpinIsomer,'')=?" % field
-                                    cursor.execute(sql, (pfs.values[temperature], id, nsi))
-                                except Exception, e:
-                                    print "SQL-Error: %s " % sql
-                                    print pfs.values[temperature], id
-                                    print "Error: %d: %s" % (e.args[0], e.args[1])
-                    except:
-                        pass
+                            nsi = pfs.NuclearSpinIsomer
+                        for temperature in pfs.values.keys():
+                            try:
+                                field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
+                                sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? AND IFNULL(PF_NuclearSpinIsomer,'')=?" % field
+                                cursor.execute(sql, (pfs.values[temperature], id, nsi))
+                            except Exception, e:
+                                print "SQL-Error: %s " % sql
+                                print pfs.values[temperature], id
+                                print "Error: %d: %s" % (e.args[0], e.args[1])
+                except:
+                    pass
             #------------------------------------------------------------------------------------------------------
-
             for row in num_transitions:
                 print "      for %s inserted %d transitions" % (row, num_transitions[row])
             self.conn.commit()
