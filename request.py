@@ -19,7 +19,7 @@ import results as r
 import nodes
 
 from urlparse import urlparse
-from httplib import HTTPConnection, urlsplit, HTTPException, socket
+from httplib import HTTPConnection, HTTPSConnection, urlsplit, HTTPException, socket
 
 from dateutil.parser import parse
 
@@ -141,7 +141,10 @@ class Request(object):
         url = self.baseurl + self.querypath
         urlobj = urlsplit(url)
         
-        conn = HTTPConnection(urlobj.netloc, timeout = timeout)
+        if urlobj.scheme == 'https':
+            conn = HTTPSConnection(urlobj.netloc, timeout = timeout)
+        else:
+            conn = HTTPConnection(urlobj.netloc, timeout = timeout)
         conn.putrequest(HttpMethod, urlobj.path+"?"+urlobj.query)
         conn.endheaders()
         
@@ -191,7 +194,10 @@ class Request(object):
         url = self.baseurl + self.querypath
         urlobj = urlsplit(url)
         
-        conn = HTTPConnection(urlobj.netloc, timeout = timeout)
+        if urlobj.scheme == 'https':
+            conn = HTTPSConnection(urlobj.netloc, timeout = timeout)
+        else:
+            conn = HTTPConnection(urlobj.netloc, timeout = timeout)
         conn.putrequest("HEAD", urlobj.path+"?"+urlobj.query)
         conn.endheaders()
         
