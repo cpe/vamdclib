@@ -68,6 +68,7 @@ class TransitionRow(object):
         self.frequency = None
         self.intensity = None
         self.einsteinA = None
+        self.oscillatorstrength = None 
         self.uncertainty = None
         self.energyLower = None
         self.upperStateDegeneracy = None
@@ -153,6 +154,7 @@ class Database(object):
         T_Frequency REAL,
         T_Intensity REAL,
         T_EinsteinA REAL,
+        T_OscillatorStrength REAL,
         T_Uncertainty REAL,
         T_EnergyLower REAL,
         T_UpperStateDegeneracy INTEGER,
