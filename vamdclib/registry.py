@@ -5,17 +5,23 @@
 routines for querying the registry
 
 """
-from settings import *
+import sys
+import os
 
-REL_REG='http://registry.vamdc.eu/vamdc_registry/services/RegistryQueryv1_0'
-DEV_REG='http://casx019-zone1.ast.cam.ac.uk/registry/services/RegistryQueryv1_0'
-REL_REG='http://registry.vamdc.eu/registry-12.07/services/RegistryQueryv1_0'
+if sys.version_info[0] == 3:
+    from .settings import *
+else:
+    from settings import *
+
+REL_REG = 'http://registry.vamdc.eu/vamdc_registry/services/RegistryQueryv1_0'
+DEV_REG = 'http://casx019-zone1.ast.cam.ac.uk/registry/services/RegistryQueryv1_0'
+REL_REG = 'http://registry.vamdc.eu/registry-12.07/services/RegistryQueryv1_0'
 # use registry defined in settings if defined
 try:
   WSDL = REGURL + '?wsdl'
 except:
   REGURL = REL_REG
-  WSDL = REGURL+'?wsdl'
+  WSDL = REGURL + '?wsdl'
 
 from suds.client import Client
 from suds.xsd.doctor import Doctor
@@ -48,7 +54,14 @@ def getNodeList():
    where $x/capability[@standardID='ivo://vamdc/std/VAMDC-TAP']
    and $x/@status='active'
    and $x/capability[@standardID='ivo://vamdc/std/VAMDC-TAP']/versionOfStandards='12.07'
-   return  <node><title>{$x/title/text()}</title><url>{$x/capability[@standardID='ivo://vamdc/std/VAMDC-TAP']/interface/accessURL/text()}</url><identifier>{$x/identifier/text()}</identifier></node>   
+   return
+   <node><title>{$x/title/text()}</title>
+   <url>{$x/capability[@standardID='ivo://vamdc/std/VAMDC-TAP']/interface/accessURL/text()}</url>
+   <referenceURL>{$x/content/referenceURL/text()}</referenceURL>
+   <identifier>{$x/identifier/text()}</identifier>
+   <maintainer>{$x/curation/contact/email/text()}</maintainer>
+   <returnables>{$x/capability/returnable}</returnables>
+   </node>
 }
 </nodes>"""
 
@@ -61,15 +74,17 @@ def getNodeList():
             url = node.url.split(" ")[0]
         except:
             url = None
-            
-        nameurls.append({\
-            'name':node.title,
-            'url':url,
-            'identifier':node.identifier,
-            })
+
+        nameurls.append({
+            'name': node.title,
+            'url': url,
+            'referenceUrl': node.referenceUrl if "referenceUrl" in dir(node) else None,
+            'identifier': node.identifier,
+            'maintainer': node.maintainer,
+            'returnables': node.returnables['returnable']})
     return nameurls
 
 
 
 if __name__ == '__main__':
-    print getNodeList()
+    print(getNodeList())
