@@ -19,6 +19,8 @@ import nodes
 import specmodel
 from settings import *
 
+LOGLEVEL = 'full'
+
 # List of Temperatures for which the Partitionfunction is stored in the sqlite database.
 Temperatures = [1.072, 1.148, 1.230, 1.318, 1.413, 1.514, 1.622, 1.738, 1.862, 1.995, 2.138, 2.291, 2.455, 2.630, 2.725, 2.818, 3.020, 3.236, 3.467, 3.715, 3.981, 4.266, 4.571, 4.898, 5.000, 5.248, 5.623, 6.026, 6.457, 6.918, 7.413, 7.943, 8.511, 9.120, 9.375, 9.772, 10.471, 11.220, 12.023, 12.882, 13.804, 14.791, 15.849, 16.982, 18.197, 18.750, 19.498, 20.893, 22.387, 23.988, 25.704, 27.542, 29.512, 31.623, 33.884, 36.308, 37.500, 38.905, 41.687, 44.668, 47.863, 51.286, 54.954, 58.884, 63.096, 67.608, 72.444, 75.000, 77.625, 83.176, 89.125, 95.499, 102.329, 109.648, 117.490, 125.893, 134.896, 144.544, 150.000, 154.882, 165.959, 177.828, 190.546, 204.174, 218.776, 225.000, 234.423, 251.189, 269.153, 288.403, 300.000, 309.030, 331.131, 354.813, 380.189, 407.380, 436.516, 467.735, 500.000, 501.187, 537.032, 575.440, 616.595, 660.693, 707.946, 758.578, 812.831, 870.964, 933.254, 1000.000, ]
 
@@ -42,10 +44,10 @@ class Database(object):
         """
         try:
             self.conn = sqlite3.connect(database_file)
-        except sqlite3.Error, e:
+        except sqlite3.Error as e:
             print " "
             print "Can not connect to sqlite3 databse %s." % database_file
-            print "Error: %d: %s" % (e.args[0], e.args[1])
+            print "Error: %s" % (str(e))
         return
 
     ##********************************************************************
@@ -262,7 +264,7 @@ class Database(object):
                 print "ENTRY OUTDATED" 
                 changedate = None
                 continue
-            except Exception, e:
+            except Exception as e:
                 print "Error in getlastmodified: %s " % str(e)
                 print "Status - code: %s" % str(request.status)
                 changedate = None
@@ -304,8 +306,8 @@ class Database(object):
                 if exist is None:
                     print "ID: %s" % result.data['Molecules'][id]
                     counter += 1
-            except Exception, e:
-                print e
+            except Exception as e:
+                print("Error in check species: %s" % str(e))
                 print id
         print "There are %d new species available" % counter
 
@@ -419,8 +421,8 @@ class Database(object):
 
                 result = request.dorequest()
                 #result.populate_model()
-            except Exception, e:
-                print " -- Error %s: Could not fetch and process data" % e.strerror
+            except Exception as e:
+                print " -- Error %s: Could not fetch and process data" % str(e)
                 continue    
             #---------------------------------------
 
@@ -449,7 +451,8 @@ class Database(object):
             counter_transitions = 0
             for trans in result.data['RadiativeTransitions']:
                 counter_transitions+=1
-                print "\r insert transition %d of %d" % (counter_transitions, num_transitions_found),
+                if LOGLEVEL == 'full':
+                    print("\r insert transition %d of %d" % (counter_transitions, num_transitions_found))
                 # data might contain transitions for other species (if query is based on ichikey/vamdcspeciesid).
                 # Insert transitions only if they belong to the correct specie
 
@@ -491,8 +494,8 @@ class Database(object):
                         for pc in result.data['RadiativeTransitions'][trans].ProcessClass:
                             if str(pc)[:3] == 'hyp':
                                 t_hfs = str(pc)
-                    except Exception, e:
-                            print "Error: %s", e
+                    except Exception as e:
+                            print("Error: %s" % str(e))
 
                     frequency = float(result.data['RadiativeTransitions'][trans].FrequencyValue)
                     try:
@@ -578,8 +581,8 @@ class Database(object):
                                             str(lower_state.QuantumNumbers.qn_string),
                                             ))
                             num_transitions[t_name] += 1
-                        except Exception, e:
-                            print "Transition has not been inserted:\n Error: %s" % e
+                        except Exception as e:
+                            print("Transition has not been inserted:\n Error: %s" % str(e))
             print "\n"
             #------------------------------------------------------------------------------------------------------
 
@@ -648,10 +651,10 @@ class Database(object):
                                             "%s%s%s" % (url, "sync?LANG=VSS2&amp;REQUEST=doQuery&amp;FORMAT=XSAMS&amp;QUERY=Select+*+where+SpeciesID%3D", id),
                                             datetime.now(), ))
                     except sqlite3.Error as e:
-                        print "An error occurred:", e.args[0]
+                        print("An error occurred: %s" % str(e))
                     except Exception as e:
-                        print "An error occurred:", e.args[0]
-                        print result.data['Molecules'].keys()
+                        print("An error occurred: %s" % str(e))
+                        print(result.data['Molecules'].keys())
 
                 # Update Partitionfunctions
                 if id in result.data['Atoms'].keys():
@@ -661,10 +664,10 @@ class Database(object):
                             field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
                             sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? " % field
                             cursor.execute(sql, (pf_values[id], id))
-                        except Exception, e:
-                            print "SQL-Error: %s " % sql
-                            print pf_value, id
-                            print "Error: %d: %s" % (e.args[0], e.args[1])
+                        except Exception as e:
+                            print("SQL-Error: %s " % sql)
+                            print(pf_value, id)
+                            print("Error: %s" % str(e))
                 else:
                     try:
                         for pfs in result.data['Molecules'][id].PartitionFunction:
@@ -678,10 +681,10 @@ class Database(object):
                                     field = ("PF_%.3lf" % float(temperature)).replace('.', '_')
                                     sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? AND IFNULL(PF_NuclearSpinIsomer,'')=?" % field
                                     cursor.execute(sql, (pfs.values[temperature], id, nsi))
-                                except Exception, e:
-                                    print "SQL-Error: %s " % sql
-                                    print pfs.values[temperature], id
-                                    print "Error: %d: %s" % (e.args[0], e.args[1])
+                                except Exception as e:
+                                    print("SQL-Error: %s " % sql)
+                                    print(pfs.values[temperature], id)
+                                    print("Error: %s" % str(e))
                     except:
                         pass
             #------------------------------------------------------------------------------------------------------
@@ -763,7 +766,7 @@ class Database(object):
                 errorcode = None
                 try:
                     changedate = request.getlastmodified()
-                except r.NoContentError, e:
+                except r.NoContentError as e:
                     # Delete entries which are not available anymore
                     if request.status == 204:
                         if delete_archived:
@@ -775,7 +778,7 @@ class Database(object):
                             print " -- ENTRY ARCHIVED -- "
                         continue
 
-                except r.TimeOutError, e:
+                except r.TimeOutError as e:
 #                    errorcode = e.strerror
 #                    changedate = None
                     print " -- TIMEOUT: Could not check entry -- "
@@ -856,16 +859,16 @@ class Database(object):
                         print "   %s" % result.data['Molecules'][id]
                         insert_molecules_list.append(result.data['Molecules'][id])
                         counter += 1
-                except Exception, e:
-                    print e
-                    print id
-            print "There are %d new species available" % counter
+                except Exception as e:
+                    print("Error: %s" % str(e))
+                    print(id)
+            print("There are %d new species available" % counter)
             print("----------------------------------------------------------")
-            print "Start insert"
+            print("Start insert")
             print("----------------------------------------------------------")           
             self.insert_species_data(insert_molecules_list, node)
             print("----------------------------------------------------------")           
-            print "Done"
+            print("Done")
 
     ##********************************************************************
     def getvibstatelabel(self, upper_state, lower_state):
@@ -951,4 +954,37 @@ class Database(object):
 
         return "%s%s%s" % (massnumber, atom.ChemicalElementSymbol, charge_str)
 
-    
+    def update_splat_info(self):
+        """
+        Updates the splattalogue ids and names in the database with information
+        retrieved from the splattalogue website.
+        """
+        try:
+            import splatparser
+        except Exception as e:
+            print("Cannot import splatparser module. Probably libraries are missing: %s" % str(e))
+            return
+        try:
+            tag_dict = splatparser.generate_tag_dict()
+        except Exception as e:
+            print("Error generating splattalogue lookup dictionary: %s" % str(e))
+            return
+
+        # update all entries where splat info is missing in the db.
+        # does not update existing data
+        cursor = self.conn.cursor()
+        sql = "UPDATE Partitionfunctions SET PF_SPLAT_ID=?, PF_SPLAT_NAME=?  WHERE PF_SPLAT_ID IS NULL \
+                AND CAST(TRIM(SUBSTR(PF_Comment,1,INSTR(PF_Comment,'-')-1)) AS INTEGER) = ?"
+
+        for tag in tag_dict:
+            try:
+                cursor.execute(sql, (tag_dict[tag]['splat_id'], tag_dict[tag]['splat_name'], tag))
+            except Exception as e:
+                print("Could not update Splattalogue-ID:")
+                print("%s" % str(e))
+                print("%d, - Tag: %d" % (tag_dict[tag]['splat_id'], tag))
+        self.conn.commit()
+        cursor.close()
+
+
+
