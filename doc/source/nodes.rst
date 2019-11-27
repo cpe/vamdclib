@@ -26,7 +26,7 @@ The following example shows how to get an node instance for CDMS::
   >>> nl = nodes.Nodelist()
   >>> cdms = nl.getnode('ivo://vamdc/cdms/vamdc-tap-dev')
   >>> cdms.url
-  u'http://cdms.ph1.uni-koeln.de/cdms/tap/'
+  u'https://cdms.astro.uni-koeln.de/cdms/tap/'
 
 The 'getnode' method can be replaced by findnode if the 'searchstring' is unique::
 
