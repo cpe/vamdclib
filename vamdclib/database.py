@@ -455,7 +455,7 @@ class Database(object):
         species = r.getspecies(node = node)
 
         print("----------------------------------------------------------")
-        print "Query '{dbname}' for new species ".format(dbname=node.name)
+        print("Query '{dbname}' for new species ".format(dbname=node.name))
         print("----------------------------------------------------------")
 
         for id in species['Molecules'].keys() + species['Atoms'].keys():
@@ -465,7 +465,7 @@ class Database(object):
                 if exist is None:
                     pfrow = PFrow(species_id = id)
                     if id in species['Atoms'].keys():
-                        print "ID: %s" % species['Atoms'][id]
+                        print("ID: %s" % species['Atoms'][id])
                         name = self.createatomname(species['Atoms'][id])
                         pfrow.name = name
                         pfrow.stoichiometricformula = name
@@ -479,7 +479,7 @@ class Database(object):
 
                         pfrow.vamdc_species_id = "%s" % (species['Atoms'][id].VAMDCSpeciesID)
                     else:
-                        print "ID: %s" % species['Molecules'][id]
+                        print("ID: %s" % species['Molecules'][id])
                         formula = str(species['Molecules'][id].OrdinaryStructuralFormula)
                         pfrow.ordinarystructuralformula = formula
                         pfrow.stoichiometricformula = \
@@ -608,13 +608,13 @@ class Database(object):
 
 
             if speciesid:
-                print "Processing: {speciesid}".format(speciesid = speciesid)
-                print "Be aware that not all VAMDC-Nodes are able to query \
-                        SpeciesID's"
+                print("Processing: {speciesid}".format(speciesid = speciesid))
+                print("Be aware that not all VAMDC-Nodes are able to query \
+                        SpeciesID's")
                 # Create query string
                 query_string = "SELECT ALL WHERE SpeciesID='%s'" % speciesid
             else:
-                print "Processing: {vamdcspeciesid}".format(vamdcspeciesid = vamdcspeciesid)
+                print("Processing: {vamdcspeciesid}".format(vamdcspeciesid = vamdcspeciesid))
                 # Create query string
                 query_string = "SELECT ALL WHERE VAMDCSpeciesID='%s'" % vamdcspeciesid
                
@@ -630,7 +630,7 @@ class Database(object):
                 result = request.dorequest()
                 #result.populate_model()
             except Exception, e:
-                print " -- Error %s: Could not fetch and process data" % e.strerror
+                print(" -- Error %s: Could not fetch and process data" % e.strerror)
                 continue    
  
             if vamdcspeciesid is None:
@@ -641,7 +641,7 @@ class Database(object):
                     vamdcspeciesid = \
                             result.data['Atoms'][speciesid].VAMDCSpeciesID
                 else:
-                    print "Could not determine VAMDCSpeciesID"
+                    print("Could not determine VAMDCSpeciesID")
 
             #-----------------------------------------------------
             # Check what is in the database for this species
@@ -705,7 +705,7 @@ class Database(object):
             counter_transitions = 0
             for trans in result.data['RadiativeTransitions']:
                 counter_transitions+=1
-                print "\r insert transition %d of %d" % (counter_transitions, num_transitions_found),
+                print("\r insert transition %d of %d" % (counter_transitions, num_transitions_found))
                 # data might contain transitions for other species (if query is based on ichikey/vamdcspeciesid).
                 # Insert transitions only if they belong to the correct specie
 
@@ -720,7 +720,7 @@ class Database(object):
                         upper_state = result.data['States']["%s" % result.data['RadiativeTransitions'][trans].UpperStateRef]
                         lower_state = result.data['States']["%s" % result.data['RadiativeTransitions'][trans].LowerStateRef]
                     except (KeyError, AttributeError):
-                        print " -- Error: State is missing"
+                        print(" -- Error: State is missing")
                         species_with_error.append(id)
                         continue
 
@@ -751,13 +751,13 @@ class Database(object):
                             if str(pc)[:3] == 'hyp':
                                 t_hfs = str(pc).strip()
                     except Exception, e:
-                            print "Error: %s", e
+                            print("Error: %s", e)
 
                     frequency = float(result.data['RadiativeTransitions'][trans].FrequencyValue)
                     try:
                         uncertainty = "%lf" % float(result.data['RadiativeTransitions'][trans].FrequencyAccuracy)
                     except TypeError:
-                        print " -- Error uncertainty not available"
+                        print(" -- Error uncertainty not available")
                         species_with_error.append(id)
                         continue
 
@@ -765,7 +765,7 @@ class Database(object):
                     try:
                         weight = int(upper_state.TotalStatisticalWeight)
                     except:
-                        print " -- Error statistical weight not available"
+                        print(" -- Error statistical weight not available")
                         species_with_error.append(id)
                         continue
 
@@ -881,10 +881,10 @@ class Database(object):
                                 db_id = cursor.lastrowid
                                 species_dict_id[(id, nsiName, t_hfs, t_state)] = db_id
                             except sqlite3.Error as e:
-                                print "An error occurred:", e.args[0]
+                                print("An error occurred:", e.args[0])
                             except Exception as e:
-                                print "An error occurred:", e.args[0]
-                                print result.data['Molecules'].keys()
+                                print("An error occurred:", e.args[0])
+                                print(result.data['Molecules'].keys())
                         # ------------------------------------------------------------------------------
                         # Insert transition into database
                         try:
@@ -915,14 +915,14 @@ class Database(object):
                                  ))
                             num_transitions[t_name] += 1
                         except Exception, e:
-                            print "Transition has not been inserted:\n Error: %s" % e
-            print "\n"
+                            print("Transition has not been inserted:\n Error: %s" % e)
+            print("\n")
             #------------------------------------------------------------------------------------------------------
 
             #------------------------------------------------------------------------------------------------------
             # delete transitions for all entries where an error occured during the insert
             for id in species_with_error:
-                print " -- Species {id} has not been inserted due to an error ".format(id=str(id))
+                print(" -- Species {id} has not been inserted due to an error ".format(id=str(id)))
                 try:
                     cursor.execute("""DELETE FROM Transitions WHERE
                                    T_SpeciesID=?""", (str(id),))
@@ -942,9 +942,9 @@ class Database(object):
                         sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? " % field
                         cursor.execute(sql, (pf_values[id], id))
                     except Exception, e:
-                        print "SQL-Error: %s " % sql
-                        print pf_value, id
-                        print "Error: %d: %s" % (e.args[0], e.args[1])
+                        print("SQL-Error: %s " % sql)
+                        print(pf_value, id)
+                        print("Error: %d: %s" % (e.args[0], e.args[1]))
             else:
                 try:
                     for pfs in result.data['Molecules'][id].PartitionFunction:
@@ -958,14 +958,14 @@ class Database(object):
                                 sql = "UPDATE Partitionfunctions SET %s=? WHERE PF_SpeciesID=? AND IFNULL(PF_NuclearSpinIsomer,'')=?" % field
                                 cursor.execute(sql, (pfs.values[temperature], id, nsi))
                             except Exception, e:
-                                print "SQL-Error: %s " % sql
-                                print pfs.values[temperature], id
-                                print "Error: %d: %s" % (e.args[0], e.args[1])
+                                print("SQL-Error: %s " % sql)
+                                print(pfs.values[temperature], id)
+                                print("Error: %d: %s" % (e.args[0], e.args[1]))
                 except:
                     pass
             #------------------------------------------------------------------------------------------------------
             for row in num_transitions:
-                print "      for %s inserted %d transitions" % (row, num_transitions[row])
+                print("      for %s inserted %d transitions" % (row, num_transitions[row]))
             self.conn.commit()
             cursor.close()
 
