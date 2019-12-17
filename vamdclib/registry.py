@@ -61,6 +61,7 @@ def getNodeList():
    <identifier>{$x/identifier/text()}</identifier>
    <maintainer>{$x/curation/contact/email/text()}</maintainer>
    <returnables>{$x/capability/returnable}</returnables>
+   <restrictables>{$x/capability/restrictable}</restrictables>
    </node>
 }
 </nodes>"""
@@ -81,7 +82,9 @@ def getNodeList():
             'referenceUrl': node.referenceUrl if "referenceUrl" in dir(node) else None,
             'identifier': node.identifier,
             'maintainer': node.maintainer,
-            'returnables': node.returnables['returnable']})
+            'returnables': node.returnables['returnable'],
+            'restrictables': node.restrictables['restrictable'],
+            })
     return nameurls
 
 
