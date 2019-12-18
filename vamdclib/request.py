@@ -403,15 +403,20 @@ def do_species_data_request(
     result = None
     try:
         if species_id is not None:
+            # currently the database identifier has to be removed
+            # from the species_id
+            if '-' in species_id:
+                id = species_id.split('-')[1]
+            else:
+                id = species_id
             print("Processing: {speciesid}".format(speciesid=species_id))
-            print("Be aware that not all VAMDC-Nodes are able to query "
-                  " SpeciesID's")
             # Create query string
-            query_string = "SELECT ALL WHERE SpeciesID='%s'" % species_id
+            query_string = "SELECT ALL WHERE SpeciesID=%s" % id
             request.setquery(query_string)
             result = request.dorequest()
     except Exception as e:
-        print("Query failed: %s \n\n Try restrictable VamdcSpeciesID instead"
+        print("Query failed: %s \n\n Try restrictable VamdcSpeciesID instead."
+              "Not all nodes support restrictable-species-id."
               % e)
         result = None
 
