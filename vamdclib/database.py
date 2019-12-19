@@ -608,8 +608,8 @@ class Database(object):
         print("Query '{dbname}' for new species ".format(dbname=node.name))
         print("----------------------------------------------------------")
 
-        for species_id in species['Molecules'].keys() \
-                + species['Atoms'].keys():
+        for species_id in set(species['Molecules']) \
+                | set(species['Atoms']):
             try:
                 cursor.execute("SELECT PF_ID FROM Partitionfunctions "
                                "WHERE PF_SpeciesID=?",
@@ -829,7 +829,6 @@ class Database(object):
         species_dict = {}
         species_dict_id = {}
         for row in cursor.fetchall():
-
             db_id = row[0]
             # db_name = row[1]
             db_species_id = row[2]
@@ -882,7 +881,7 @@ class Database(object):
             transitions_processed = {}
 
             # get next species
-            species_id = species_dict.keys()[0]
+            species_id = next(iter(species_dict))
             (db_node, db_vamdcspecies_id) = species_dict.pop(species_id)
 
             # try to retrieve data for species-id. If it fails because
@@ -1154,7 +1153,7 @@ class Database(object):
             if not is_molecule and species_id in species_data:
                 # partition fucntions for atoms have to be calculated based
                 # on the state energies.
-                self.parse_and_update_partitionfunctions(id, result)
+                self.parse_and_update_partitionfunctions(species_id, result)
 
             # ------------------------------------------------------------------------------------------------------
             for sidx in transitions_processed:
@@ -2014,27 +2013,27 @@ class Database(object):
                         temperature=temperature)
                 except Exception as e:
                     print("Calculation of partition functions failed for "
-                          "specie %d:\n%s " % (id, str(e)))
+                          "specie %s:\n%s " % (id, str(e)))
 
                 self.update_partitionfunction(id, temperature, pf_values[id])
 
-            else:
-                for pfs in pfs_nsi_dict:
-                    try:
-                        if 'NuclearSpinIsomer' not in pfs.__dict__:
-                            nsi = ''
-                        else:
-                            nsi = pfs.NuclearSpinIsomer
+        else:
+            for pfs in pfs_nsi_dict:
+                try:
+                    if 'NuclearSpinIsomer' not in pfs.__dict__:
+                        nsi = ''
+                    else:
+                        nsi = pfs.NuclearSpinIsomer
 
-                        for temperature in pfs.values.keys():
-                            self.update_partitionfunction(
-                                    id,
-                                    temperature,
-                                    pfs.values[temperature],
-                                    nsi)
-                    except Exception as e:
-                        print("Partition functions could not be parsed for "
-                              "specie %d (nsi=%s):\n%s " % (id, nsi, e))
+                    for temperature in pfs.values.keys():
+                        self.update_partitionfunction(
+                                id,
+                                temperature,
+                                pfs.values[temperature],
+                                nsi)
+                except Exception as e:
+                    print("Partition functions could not be parsed for "
+                          "specie %d (nsi=%s):\n%s " % (id, nsi, e))
 
     def update_partitionfunction(self, id, temperature, value, nsi=''):
         """

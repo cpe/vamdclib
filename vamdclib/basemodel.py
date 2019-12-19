@@ -8,13 +8,16 @@ if sys.version_info[0] == 3:
 else:
     import functions
 
-NAMESPACE='http://vamdc.org/xml/xsams/1.0'
+NAMESPACE = 'http://vamdc.org/xml/xsams/1.0'
 
 # some usefull functions
+
+
 def split_datalist(datalist):
     """
     """
     return datalist.text.split(" ")
+
 
 def get_value(element):
     """
@@ -22,11 +25,13 @@ def get_value(element):
     """
     return element.text
 
+
 def get_attributes(element):
     """
-    Returns a list of attributes-tuples (attribute, value) 
+    Returns a list of attributes-tuples (attribute, value)
     """
     return list(element.items())
+
 
 def convert_tabulateddata(item):
     """
@@ -40,24 +45,26 @@ def convert_tabulateddata(item):
     yunits = (string) containing unit of value elements
     comment = (string)
     """
-    
-    x = item.find("{%s}X/{%s}DataList" % (NAMESPACE, NAMESPACE) ).text.split(" ")
-    y = item.find("{%s}Y/{%s}DataList" % (NAMESPACE, NAMESPACE) ).text.split(" ")
-    xunits = item.find("{%s}X" % (NAMESPACE) ).get('units')
-    yunits = item.find("{%s}Y" % (NAMESPACE) ).get('units')
+    x = item.find("{%s}X/{%s}DataList" % (NAMESPACE, NAMESPACE)).text.split(" ")
+    y = item.find("{%s}Y/{%s}DataList" % (NAMESPACE, NAMESPACE)).text.split(" ")
+    xunits = item.find("{%s}X" % (NAMESPACE)).get('units')
+    yunits = item.find("{%s}Y" % (NAMESPACE)).get('units')
     comment = item.find("{%s}Comments" % (NAMESPACE)).text
-    
+
     datadict = {}
     for i in range(len(x)):
-        datadict[x[i]]=y[i]
+        datadict[x[i]] = y[i]
 
-    return {'data':datadict, 'xunits:':xunits, 'yunits':yunits, 'comment':comment}
+    return {'data': datadict, 'xunits:': xunits,
+            'yunits': yunits, 'comment': comment}
+
 
 def remove_namespace(tag):
     """
     Returns tag without namespace
     """
     return tag[tag.find('}')+1:]
+
 
 def construct_model(dictionary):
     """
@@ -69,25 +76,25 @@ def construct_model(dictionary):
     or changed.
 
     Syntax of the input-dictionary:
-    fieldname:path (tags without namespace connected with dot. Multiple occurances
-              are indicated by '[]' and functions which have to be applied are
-              appended at the end of the string with preceeding '\\'.
+    fieldname:path (tags without namespace connected with dot. Multiple
+              occurances are indicated by '[]' and functions which have to be
+              applied are appended at the end of the string with preceeding
+              '\\'.
 
-              
     """
     model = {}
     for field in dictionary:
         code = ""
         code_add = ""
         iterator_code = None
-        
-        if dictionary[field].find("\\")>-1:
+
+        if dictionary[field].find("\\") > -1:
             path_array, function = dictionary[field].split("\\")
             path_array = path_array.split(".")
         else:
             function = None
             path_array = dictionary[field].split(".")
-            
+
         for tag in path_array:
             # is an attribute
 
@@ -98,13 +105,14 @@ def construct_model(dictionary):
                 # attribute can only at the last position
                 break
             # xpath expression -> do not attach namespace
-            elif tag[-2:] == '[]' and tag[0] in ['*','.','/']:
+            elif tag[-2:] == '[]' and tag[0] in ['*', '.', '/']:
                 iterator_code = "self.xml.findall('%s%s')" % (code, tag[:-2])
                 code = ""
             elif tag[-2:] == '[]':
-                iterator_code = "self.xml.findall('%s{%s}%s')" % (code, NAMESPACE, tag[:-2])
+                iterator_code = "self.xml.findall('%s{%s}%s')"\
+                                % (code, NAMESPACE, tag[:-2])
                 code = ""
-            elif tag[0] in ['*','.','/']:
+            elif tag[0] in ['*', '.', '/']:
                 code += "%s/" % tag
             # regular element -> attach namespace
             else:
@@ -117,8 +125,9 @@ def construct_model(dictionary):
                 if function is not None:
                     if function == 'self':
                         code = "[el for el in %s]" % (iterator_code)
-                    else:    
-                        code = "[%s(el) for el in %s]" % (function, iterator_code)
+                    else:
+                        code = "[%s(el) for el in %s]" \
+                               % (function, iterator_code)
                 elif len(code_add) == 0:
                     code = "[el.text for el in %s]" % (iterator_code)
                 else:
@@ -126,15 +135,18 @@ def construct_model(dictionary):
             else:
                 if function is not None:
                     if function == 'self':
-                        code = "[el.find('%s') for el in %s]" % (code[:-1], iterator_code)
+                        code = "[el.find('%s') for el in %s]"\
+                                % (code[:-1], iterator_code)
                     else:
-                        code = "[%s(el.find('%s')) for el in %s]" % (function, code[:-1], iterator_code)
+                        code = "[%s(el.find('%s')) for el in %s]"\
+                                % (function, code[:-1], iterator_code)
                 elif len(code_add) == 0:
-                    code = "[el.find('%s').text for el in %s]" % (code, iterator_code)
+                    code = "[el.find('%s').text for el in %s]"\
+                            % (code, iterator_code)
                 else:
-                    code = "[el.find('%s').%s for el in %s]" % (code, code_add, iterator_code)
-                
-                    
+                    code = "[el.find('%s').%s for el in %s]"\
+                            % (code, code_add, iterator_code)
+
         else:
             if len(code) == 0:
                 if function is not None:
@@ -145,13 +157,14 @@ def construct_model(dictionary):
                 elif len(code_add) > 0:
                     code = "self.xml.%s" % (code_add,)
                 else:
-                    print("ERROR --------") 
+                    print("ERROR --------")
             else:
                 if function is not None:
                     if function == 'self':
                         code = "self.xml.find('%s')" % (code[:-1],)
                     else:
-                        code = "%s(self.xml.find('%s'))" % (function, code[:-1],)
+                        code = "%s(self.xml.find('%s'))"\
+                                % (function, code[:-1],)
                 elif len(code_add) > 0:
                     code = "self.xml.find('%s').%s" % (code[:-1], code_add,)
                 else:
@@ -159,17 +172,18 @@ def construct_model(dictionary):
         model[field] = code
     return model
 
+
 class Model(object):
     """
     Defines the general Model-Class from which all Model-classes are
-    inherited. 
+    inherited.
     """
     def __init__(self, xml):
         self.xml = xml
-        
+
         if self.xml is not None:
             self.readXML(self.xml)
-    
+
     def additem(self, item, value):
         """
         Adds a new element to the model. If the element name
@@ -192,19 +206,20 @@ class Model(object):
         for item in self.DICT:
             try:
                 value = eval("%s" % self.DICT[item])
-                self.additem(item, value )
+                self.additem(item, value)
             except AttributeError:
-                #print "Could not evaluate %s" % el
+                # print "Could not evaluate %s" % el
                 pass
 
             # check for attributes
-##            try:
-##                for attribute in item.keys():
-##                    self.additem(el+attribute.capitalize(), item.get(attribute))
-##            except:
-##                pass
+#            try:
+#                for attribute in item.keys():
+#                    self.additem(el+attribute.capitalize(),
+#                                 item.get(attribute))
+#            except:
+#                pass
 
-                
+
 def _construct_dictmodelclass(model_definitions, module):
     """
     Creates and returns a Dictionary Class (e.g. for Molecules).
@@ -213,22 +228,24 @@ def _construct_dictmodelclass(model_definitions, module):
     """
     class _DictModel(dict):
         DICT = construct_model(model_definitions['Dictionary'])
+
         def __init__(self, xml):
             dict.__init__(self)
             self.xml = xml
             for item in eval("%s" % self.DICT[model_definitions['Name']]):
                 element = module.__dict__[model_definitions['Type']](item)
                 self[element.Id] = element
-                             
+
     return _DictModel
-        
-def _construct_class(model_definitions, module = None):
+
+
+def _construct_class(model_definitions, module=None):
     """
     Creates and returns a Model-Class (e.g. for a Molecule)
     """
     class _Model(Model):
         DICT = construct_model(model_definitions['Dictionary'])
-           
+
         def __repr__(self):
             retval = ""
             for field in model_definitions['representation_fields']:
@@ -237,12 +254,13 @@ def _construct_class(model_definitions, module = None):
                 except KeyError:
                     retval += "None "
             return retval
-        
+
     if 'methods' in model_definitions:
         for method in model_definitions['methods']:
             setattr(_Model, method['name'], method['method'])
 
     return _Model
+
 
 def register_models(DICT_MODELS, module):
     """
@@ -254,12 +272,10 @@ def register_models(DICT_MODELS, module):
     for model in DICT_MODELS['model_types']:
         print("Register Class %s in %s" % (model['Name'], module.__name__))
         model_class = _construct_class(model)
-        setattr(sys.modules[__name__], model['Name'], model_class )
-        setattr(module, model['Name'], model_class )
-
+        setattr(sys.modules[__name__], model['Name'], model_class)
+        setattr(module, model['Name'], model_class)
 
     for model in DICT_MODELS['dict_types']:
         print("Register DictClass %s in %s" % (model['Name'], module.__name__))
-        setattr(module, model['Name'], _construct_dictmodelclass(model, module))
-        
-
+        setattr(module, model['Name'],
+                _construct_dictmodelclass(model, module))
