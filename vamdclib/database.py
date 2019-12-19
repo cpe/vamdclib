@@ -898,6 +898,9 @@ class Database(object):
                 print(" -- Error %s: Could not fetch and process data"
                       % e.strerror)
                 continue
+            if result is None:
+                print(" -- Error %s: Could not fetch and process data")
+                continue
 
             if species_id in result.data['Molecules']:
                 species_data = result.data['Molecules']
@@ -1362,12 +1365,10 @@ class Database(object):
 
                     if id in result.data['Atoms'].keys():
                         is_atom = True
-                        is_molecule = False
                         atomname = self.createatomname(
                                 result.data['Atoms'][id]).strip()
                     elif id in result.data['Molecules'].keys():
                         is_atom = False
-                        is_molecule = True
                         formula = str(result.data[
                             'Molecules'][id].OrdinaryStructuralFormula).strip()
 
@@ -1750,12 +1751,10 @@ class Database(object):
 
                     if id in result.data['Atoms'].keys():
                         is_atom = True
-                        is_molecule = False
                         atomname = self.createatomname(
                                 result.data['Atoms'][id])
                     elif id in result.data['Molecules'].keys():
                         is_atom = False
-                        is_molecule = True
                         formula = str(result.data['Molecules'][
                             id].OrdinaryStructuralFormula)
 
@@ -2176,7 +2175,6 @@ class Database(object):
                     if node not in dbnodes:
                         dbnodes.append(node)
 
-                vamdcspeciesid = row[2]
                 # Currently the database prefix XCDMS- or XJPL- has to be
                 # removed
                 speciesid = row[1].split("-")[1]
@@ -2374,8 +2372,6 @@ class Database(object):
             charge = int(atom.IonCharge)
         except AttributeError:
             charge = 0
-
-        symbol = atom.ChemicalElementSymbol
 
         if charge == 0:
             charge_str = ''
