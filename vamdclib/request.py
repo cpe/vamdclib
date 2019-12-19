@@ -8,24 +8,15 @@ request has been performed.
 import sys
 import ssl
 
-try:
-    from lxml import objectify
-    is_available_xml_objectify = True
-except ImportError:
-    is_available_xml_objectify = False
-
-from xml.etree import ElementTree
 from dateutil.parser import parse
 
 if sys.version_info[0] == 3:
     import urllib.parse
     urllib2 = urllib.parse
-    from urllib.parse import urlparse
     from http.client import (HTTPConnection, HTTPSConnection,
                              urlsplit, HTTPException, socket)
     unicode = str
 else:
-    from urlparse import urlparse
     import urllib2
     from httplib import (HTTPConnection, HTTPSConnection,
                          urlsplit, HTTPException, socket)
