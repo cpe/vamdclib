@@ -782,8 +782,6 @@ class Database(object):
         # list will contain species whose insert failed.
         species_with_error = []
 
-        # dictionary thatstores processed transitions.
-        transitions_processed = {}
         # ----------------------------------------------------------
         # Create a list of species for which transitions will be
         # retrieved and inserted in the database.
@@ -869,7 +867,7 @@ class Database(object):
                         and (node, db_vamdcspecies_id) != \
                         species_dict[db_species_id]:
                     print("Warning: Additional entry found for specie "
-                        "%s " % db_species_id)
+                          "%s " % db_species_id)
 
                 else:
                     species_dict[db_species_id] = (node, db_vamdcspecies_id)
@@ -877,10 +875,12 @@ class Database(object):
                 # -1 indicates that this entry shall not be updated.
                 species_dict_id[sidx] = -1
 
-
         cursor.close()
         # process species-id first and then vamdc-species-ids
         while species_dict:
+            # dictionary thatstores processed transitions.
+            transitions_processed = {}
+
             # get next species
             species_id = species_dict.keys()[0]
             (db_node, db_vamdcspecies_id) = species_dict.pop(species_id)
