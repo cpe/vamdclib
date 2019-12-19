@@ -864,18 +864,19 @@ class Database(object):
                     'new', 'update available', 'update failed',
                     'updating'):
                 species_dict_id[sidx] = db_id
+
+                if db_species_id in species_dict \
+                        and (node, db_vamdcspecies_id) != \
+                        species_dict[db_species_id]:
+                    print("Warning: Additional entry found for specie "
+                        "%s " % db_species_id)
+
+                else:
+                    species_dict[db_species_id] = (node, db_vamdcspecies_id)
             else:
                 # -1 indicates that this entry shall not be updated.
                 species_dict_id[sidx] = -1
 
-            if db_species_id in species_dict \
-                    and (node, db_vamdcspecies_id) != \
-                    species_dict[db_species_id]:
-                print("Warning: Additional entry found for specie "
-                      "%s " % db_species_id)
-
-            else:
-                species_dict[db_species_id] = (node, db_vamdcspecies_id)
 
         cursor.close()
         # process species-id first and then vamdc-species-ids
