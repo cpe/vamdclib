@@ -364,8 +364,11 @@ def atomqn__init__(self, xml):
     Model.__init__(self, xml)
     # Create a string represantative of the quantum numbers.
     self.qn_string = ""
-    for qn in self.qn_dict:
-        self.qn_string += "%s = %s; " % (str(qn), str(self.qn_dict[qn]))
+    try:
+        for qn in self.qn_dict:
+            self.qn_string += "%s = %s; " % (str(qn), str(self.qn_dict[qn]))
+    except Exception as e:
+        print("Exception occured: %s" % str(e))
 
 #################################################################
 # Dictionary to Control Generation of Model- and Dictionary -
@@ -410,6 +413,7 @@ DICT_MODELS = {
          'methods': [{'name': '__init__',
                       'method': atomqn__init__},
                      ],
+         'representation_fields': ('qn_string', ),
          },
         {'Name': 'QuantumNumbers',
          'Dictionary': QUANTUMNUMBERS_DICT,
