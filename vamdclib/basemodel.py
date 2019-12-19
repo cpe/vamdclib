@@ -198,7 +198,7 @@ class Model(object):
                 pass
         else:
             item_dict, item = item.split(":")
-            if not self.__dict__.has_key(item_dict):
+            if item_dict not in self.__dict__:
                 setattr(self, item_dict, {})
             self.__dict__[item_dict][item] = value
 
