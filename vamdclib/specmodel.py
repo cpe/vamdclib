@@ -535,13 +535,21 @@ def calculate_partitionfunction(states, temperature=300.0):
     pfs = {}
     distinct_list = {}
     # create a distinct list of states
+    counter = 0
     for state in states:
         id = states[state].SpeciesID
-        qn_string = states[state].QuantumNumbers.qn_string
+        try:
+            # atomic states will fail otherwise
+            # need to be included
+            # for now it is assumed that no states are present twice
+            qn_string = states[state].QuantumNumbers.qn_string
+        except:
+            qn_string = '%d' % counter
 
         if id not in distinct_list:
             distinct_list[id] = {}
         distinct_list[id][qn_string] = states[state]
+        counter += 1
 
     for specie in distinct_list:
         pfs[specie] = 0
