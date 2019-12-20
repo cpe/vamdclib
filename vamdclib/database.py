@@ -510,6 +510,25 @@ class Database(object):
         self.conn.commit()
         cursor.close()
 
+    def set_uuid(self, id, uuid):
+        """
+        Inserts the UUID (query identifier)
+
+        :param id: id of the entry in partitionfunctions
+        :type id: int
+        :param uuid: Identifier of the database query
+        :type uuid: str
+        """
+        if uuid is None:
+            return
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE PartitionFunctions "
+                       "SET PF_UUID = ? "
+                       "WHERE PF_ID = ? ",
+                       (uuid, id))
+        self.conn.commit()
+        cursor.close()
+
     def update_pf_state(self, id, state, hfs, commit=True):
         """
         Updates state and hyperfine structure information
@@ -1175,6 +1194,10 @@ class Database(object):
                 print("      species %s %s %s %s: imported %d transitions"
                       % (sidx[0], sidx[1], sidx[2], sidx[3],
                          transitions_processed[sidx]))
+
+                # insert the query - identifier into db
+                db_id = species_dict_id[sidx]
+                self.set_uuid(db_id, result.get_uuid())
 
                 self.set_status(sidx[0],
                                 'Up-To-Date',
@@ -2400,3 +2423,18 @@ class Database(object):
 
         name = "%s%s%s" % (massnumber, atom.ChemicalElementSymbol, charge_str)
         return name.strip()
+
+    def get_reference_url(self, id):
+        """
+        returns an url that show the original xsams-result and the references.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT PF_UUID FROM Partitionfunctions "
+                       "WHERE PF_ID = ?", (id,))
+        row = cursor.fetchone()
+        try:
+            uuid = row[0]
+            url = 'https://cite.vamdc.eu/references.html?uuid=%s' % uuid
+        except Exception:
+            url = None
+        return url

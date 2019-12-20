@@ -83,6 +83,17 @@ class Result(object):
 
         self.data = populate_models(self.root, add_states=True)
 
+    def get_uuid(self):
+        """
+        Returns the uuid (request/query-identifier) that should
+        have been returned with the headers
+        """
+        if hasattr(self, 'headers') and 'uuid' in self.headers:
+            uuid = self.headers['uuid']
+        else:
+            uuid = None
+        return uuid
+
     def get_vibstates(self):
 
         vibs = {}

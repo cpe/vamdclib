@@ -7,17 +7,18 @@ request has been performed.
 
 import sys
 import ssl
+import json
 
 from dateutil.parser import parse
 
 if sys.version_info[0] == 3:
-    import urllib.parse
-    urllib2 = urllib.parse
+    from urllib.parse import quote, urlencode
     from http.client import (HTTPConnection, HTTPSConnection,
                              urlsplit, HTTPException, socket)
     unicode = str
 else:
-    import urllib2
+    from urllib2 import quote
+    from urllib import urlencode
     from httplib import (HTTPConnection, HTTPSConnection,
                          urlsplit, HTTPException, socket)
 
@@ -151,15 +152,15 @@ class Request(object):
                          % (self.query.Request,
                             self.query.Lang,
                             self.query.Format,
-                            urllib2.quote(self.query.Query))
+                            quote(self.query.Query))
 
     def dorequest(self,
                   timeout=settings.TIMEOUT,
-                  HttpMethod="POST",
+                  http_method="GET",
                   parsexsams=True):
         """
         Sends the request to the database node and returns a result.Result
-        instance. The request uses 'POST' requests by default. If the request
+        instance. The request uses 'GET' requests by default. If the request
         fails or if stated in the parameter 'HttpMethod', 'GET' requests will
         be performed.  The returned result will be parsed by default and the
         model defined in 'specmodel' will be populated by default (parseexams =
@@ -180,7 +181,8 @@ class Request(object):
                         context=ssl._create_unverified_context())
         else:
             conn = HTTPConnection(urlobj.netloc, timeout=timeout)
-        conn.putrequest(HttpMethod, urlobj.path+"?"+urlobj.query)
+        conn.putrequest(http_method, urlobj.path+"?"+urlobj.query)
+        conn.putheader('User-Agent', 'python/vamdclib')
         conn.endheaders()
 
         try:
@@ -198,7 +200,7 @@ class Request(object):
             if res.status == 200:
                 result = r.Result()
                 result.Content = res.read()
-            elif res.status == 400 and HttpMethod == 'POST':
+            elif res.status == 400 and http_method == 'POST':
                 # Try to use http-method: GET
                 result = self.dorequest(HttpMethod='GET',
                                         parsexsams=parsexsams)
@@ -211,12 +213,43 @@ class Request(object):
                 result = r.Result()
                 result.Xml = self.xml
                 result.populate_model()
-            elif res.status == 400 and HttpMethod == 'POST':
+            elif res.status == 400 and http_method == 'POST':
                 # Try to use http-method: GET
                 result = self.dorequest(HttpMethod='GET',
                                         parsexsams=parsexsams)
             else:
                 result = None
+
+        # try to get an parse headers
+        try:
+            headers = res.getheaders()
+        except:
+            headers = [("vamdc-count-species", 0),
+                       ("vamdc-count-states", 0),
+                       ("vamdc-truncated", 0),
+                       ("vamdc-count-molecules", 0),
+                       ("vamdc-count-sources", 0),
+                       ("vamdc-approx-size", 0),
+                       ("vamdc-count-radiative", 0),
+                       ("vamdc-count-atoms", 0),
+                       ('vamdc-request-token', None)
+                       ]
+
+        result.headers = {}
+        for key, value in headers:
+            result.headers[key.lower()] = value
+
+        # parse the uuid and add it to the header
+        try:
+            # format of token: database:uuid:method
+            query_token = result.headers['vamdc-request-token']
+            uuid = get_uuid_by_token(query_token)
+        except Exception:
+            query_token = None
+            uuid = None
+
+        result.headers['uuid'] = uuid
+        result.headers['queryToken'] = query_token
 
         return result
 
@@ -328,6 +361,36 @@ class Request(object):
         return result
 
 
+def get_uuid_by_token(token):
+    """
+    This method tries to obtain the UUID (query-identifier) if
+    available. Ohterwise it will return again the token, which
+    can be used to get the UUID.
+    Sometimes the query is not processed in the query-store and
+    the UUID is not yet prepared.
+    The request has to be done again later.
+
+    :param token: Token that is associated with a query and that is
+                  used to identify a query in the VAMDC query-store.
+    """
+
+    url = "querystore.vamdc.eu"
+    conn = HTTPSConnection(url, timeout=10.0)
+    params = urlencode({'queryToken': token})
+    headers = {"Content-type": "application/x-www-form-urlencoded",
+               "Accept": "text/plain"}
+
+    conn.request("POST", "/GetUUIDByToken", params, headers)
+    response = conn.getresponse()
+    try:
+        uuid = json.loads(response.read().decode('utf-8'))['UUID']
+        if uuid is None:
+            uuid = token
+    except Exception:
+        uuid = token
+    return uuid
+
+
 def getspecies(node, output='struct'):
     """
     Queries a database and returns its species
@@ -384,7 +447,9 @@ def gettransitions(node, speciesid):
 def do_species_data_request(
         node,
         species_id=None,
-        vamdcspecies_id=None):
+        vamdcspecies_id=None,
+        http_method='GET',
+        ):
     """
     Queryies a database for all data available for a specie.
     """
@@ -404,7 +469,7 @@ def do_species_data_request(
             # Create query string
             query_string = "SELECT ALL WHERE SpeciesID=%s" % id
             request.setquery(query_string)
-            result = request.dorequest()
+            result = request.dorequest(http_method=http_method)
     except Exception as e:
         print("Query failed: %s \n\n Try restrictable VamdcSpeciesID instead."
               "Not all nodes support restrictable-species-id."
