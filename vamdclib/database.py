@@ -1023,11 +1023,16 @@ class Database(object):
                 # if nuclear spin isomer is defined then two entries have
                 # to be generated
                 if nsi_name is not None and nsi_name != '':
-                    nsinames = [nsi_name, None]
-                    nsi_state_origin = result.data['States'][
-                        "%s" % upper_state.NuclearSpinIsomerLowestEnergy]
-                    nsi_energy_offset = float(
-                            nsi_state_origin.StateEnergyValue)
+                    try:
+                        nsinames = [nsi_name, None]
+                        nsi_state_origin = result.data['States'][
+                            "%s" % upper_state.NuclearSpinIsomerLowestEnergy]
+                        nsi_energy_offset = float(
+                                nsi_state_origin.StateEnergyValue)
+                    except KeyError as e:
+                        print("Exception occured while parsing nuclear "
+                              "spin isomers: %s" % str(e))
+                        continue
                 else:
                     nsinames = [None]
 
