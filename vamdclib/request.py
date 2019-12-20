@@ -156,11 +156,11 @@ class Request(object):
 
     def dorequest(self,
                   timeout=settings.TIMEOUT,
-                  HttpMethod="POST",
+                  http_method="GET",
                   parsexsams=True):
         """
         Sends the request to the database node and returns a result.Result
-        instance. The request uses 'POST' requests by default. If the request
+        instance. The request uses 'GET' requests by default. If the request
         fails or if stated in the parameter 'HttpMethod', 'GET' requests will
         be performed.  The returned result will be parsed by default and the
         model defined in 'specmodel' will be populated by default (parseexams =
@@ -181,7 +181,7 @@ class Request(object):
                         context=ssl._create_unverified_context())
         else:
             conn = HTTPConnection(urlobj.netloc, timeout=timeout)
-        conn.putrequest(HttpMethod, urlobj.path+"?"+urlobj.query)
+        conn.putrequest(http_method, urlobj.path+"?"+urlobj.query)
         conn.putheader('User-Agent', 'python/vamdclib')
         conn.endheaders()
 
@@ -200,7 +200,7 @@ class Request(object):
             if res.status == 200:
                 result = r.Result()
                 result.Content = res.read()
-            elif res.status == 400 and HttpMethod == 'POST':
+            elif res.status == 400 and http_method == 'POST':
                 # Try to use http-method: GET
                 result = self.dorequest(HttpMethod='GET',
                                         parsexsams=parsexsams)
@@ -213,7 +213,7 @@ class Request(object):
                 result = r.Result()
                 result.Xml = self.xml
                 result.populate_model()
-            elif res.status == 400 and HttpMethod == 'POST':
+            elif res.status == 400 and http_method == 'POST':
                 # Try to use http-method: GET
                 result = self.dorequest(HttpMethod='GET',
                                         parsexsams=parsexsams)
@@ -447,7 +447,9 @@ def gettransitions(node, speciesid):
 def do_species_data_request(
         node,
         species_id=None,
-        vamdcspecies_id=None):
+        vamdcspecies_id=None,
+        http_method='GET',
+        ):
     """
     Queryies a database for all data available for a specie.
     """
@@ -467,7 +469,7 @@ def do_species_data_request(
             # Create query string
             query_string = "SELECT ALL WHERE SpeciesID=%s" % id
             request.setquery(query_string)
-            result = request.dorequest()
+            result = request.dorequest(http_method=http_method)
     except Exception as e:
         print("Query failed: %s \n\n Try restrictable VamdcSpeciesID instead."
               "Not all nodes support restrictable-species-id."
