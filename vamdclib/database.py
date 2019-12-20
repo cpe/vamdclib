@@ -2416,3 +2416,18 @@ class Database(object):
 
         name = "%s%s%s" % (massnumber, atom.ChemicalElementSymbol, charge_str)
         return name.strip()
+
+    def get_reference_url(self, id):
+        """
+        returns an url that show the original xsams-result and the references.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT PF_UUID FROM Partitionfunctions "
+                       "WHERE PF_ID = ?", (id,))
+        row = cursor.fetchone()
+        try:
+            uuid = row[0]
+            url = 'https://cite.vamdc.eu/references.html?uuid=%s' % uuid
+        except Exception:
+            url = None
+        return url
