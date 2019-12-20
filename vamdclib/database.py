@@ -733,14 +733,20 @@ class Database(object):
         for i in species_import_failed:
             print("\n%s:\n%s" % (i[0], i[1]))
 
-    def show_species(self):
+    def show_species(self, status=None):
         """
         Lists all species, which are stored in the local sqlite3 database.
         """
         cursor = self.conn.cursor()
-        cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
-                        PF_Recommendation, PF_Status, PF_Createdate, \
-                        PF_Checkdate FROM Partitionfunctions")
+        if status is not None:
+            cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, "
+                           "PF_Recommendation, PF_Status, PF_Createdate, "
+                           "PF_Checkdate FROM Partitionfunctions "
+                           "WHERE PF_Status = ?", (status,))
+        else:
+            cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
+                            PF_Recommendation, PF_Status, PF_Createdate, \
+                            PF_Checkdate FROM Partitionfunctions")
         rows = cursor.fetchall()
         for row in rows:
             print("%-10s %-60s %20s %10s %10s %s %s" %
@@ -1032,6 +1038,7 @@ class Database(object):
                     except KeyError as e:
                         print("Exception occured while parsing nuclear "
                               "spin isomers: %s" % str(e))
+                        species_with_error.append(t_species_id)
                         continue
                 else:
                     nsinames = [None]
