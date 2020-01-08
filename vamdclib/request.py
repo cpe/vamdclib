@@ -276,6 +276,7 @@ class Request(object):
         else:
             conn = HTTPConnection(urlobj.netloc, timeout=timeout)
         conn.putrequest("HEAD", urlobj.path+"?"+urlobj.query)
+        conn.putheader('User-Agent', 'python/vamdclib')
         conn.endheaders()
 
         try:
@@ -331,12 +332,12 @@ class Request(object):
         if not self.status == 200:
             self.doheadrequest()
 
-        if 'last-modified' in self.headers:
+        if 'Last-Modified' in self.headers:
             try:
-                self.lastmodified = parse(self.headers['last-modified'])
+                self.lastmodified = parse(self.headers['Last-Modified'])
             except Exception as e:
                 print("Could not parse date %s"
-                      % self.headers['last-modified'])
+                      % self.headers['Last-Modified'])
                 print(e)
         else:
             if self.status == 204:
