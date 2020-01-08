@@ -567,8 +567,9 @@ class Database(object):
             counter += 1
             print("%5d/%5d: Check specie %-55s (%-15s): "
                   % (counter, num_rows, row[0], row[1]), end=' ')
-            species_id = int(row[1].split('-')[-1])
-            query_string = "SELECT ALL WHERE SpeciesID=%s" % species_id
+            species_id = row[1]
+            species_id_int = int(row[1].split('-')[-1])
+            query_string = "SELECT ALL WHERE SpeciesID=%s" % species_id_int
             request.setquery(query_string)
             request.setnode(node)
 
@@ -602,6 +603,9 @@ class Database(object):
         if count_updates == 0:
             print("\r No updates for your entries available")
         print("Done")
+        print("Updates for %d species are available.\n\n"
+              "Run update_species_data() to update their transitions!\n\n"
+              % count_updates)
 
     def check_for_new_species(self, node):
         """
