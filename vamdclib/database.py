@@ -500,15 +500,15 @@ class Database(object):
 
             cursor.execute("UPDATE PartitionFunctions "
                            "SET PF_Status = ? ,"
-                           "PF_Checkdate = now() "
+                           "PF_Checkdate = ? "
                            "WHERE PF_ID = ? ",
-                           (status, db_id))
+                           (status, datetime.now(), db_id))
         else:
             cursor.execute("UPDATE PartitionFunctions "
                            "SET PF_Status = ? ,"
-                           "PF_Checkdate = now() "
+                           "PF_Checkdate = ? "
                            "WHERE PF_SpeciesID = ? ",
-                           (status, species_id))
+                           (status, datetime.now(), species_id))
         self.conn.commit()
         cursor.close()
 
@@ -559,8 +559,9 @@ class Database(object):
         count_updates = 0
         counter = 0
         cursor = self.conn.cursor()
-        cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
-                       datetime(PF_Checkdate) FROM Partitionfunctions ")
+        cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, "
+                       "datetime(PF_Checkdate), PF_Status "
+                       "FROM Partitionfunctions ")
         rows = cursor.fetchall()
         num_rows = len(rows)
         request = r.Request()
@@ -592,15 +593,24 @@ class Database(object):
                 continue
 
             tstamp = parser.parse(row[3] + " GMT")
+            status = row[4]
+
             if changedate is None:
                 print(" -- UNKNOWN (Could not retrieve information)")
                 continue
-            if tstamp < changedate:
+            if tstamp < changedate or status == 'Update Available':
                 print(" -- UPDATE AVAILABLE ")
                 self.set_status(species_id, 'Update Available')
                 count_updates += 1
-            else:
+            elif status == 'Up-To-Date':
                 print(" -- up to date")
+                self.set_status(species_id, 'Up-To-Date')
+            else:
+                # reset status (maybe update process was interupted
+                print("Status changed from %s to 'Update Available'" %
+                      status)
+                self.set_status(species_id, 'Update Available')
+                count_updates += 1
 
         if count_updates == 0:
             print("\r No updates for your entries available")
@@ -960,7 +970,8 @@ class Database(object):
                 cursor.execute("UPDATE Partitionfunctions "
                                "SET PF_Status='Updating' "
                                "WHERE PF_SpeciesID = ? "
-                               "AND PF_Status in ('New', 'Update Available')",
+                               "AND PF_Status in ('New', 'Update Available', "
+                               "'Update Failed')",
                                (sid, ))
                 # Delete all Transitions for these entries
                 cursor.execute("DELETE FROM Transitions "
@@ -1181,6 +1192,8 @@ class Database(object):
                 except Exception as e:
                     print(" -> Tried to remove transitions for that species, "
                           "but an exception occured:\n %s" % str(e))
+
+                self.set_status(id, 'Update Failed')
 
             # ------------------------------------------------------------------------------------------------------
             # insert specie in Partitionfunctions (header) table
