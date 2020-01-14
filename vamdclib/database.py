@@ -499,12 +499,14 @@ class Database(object):
         if db_id is not None:
 
             cursor.execute("UPDATE PartitionFunctions "
-                           "SET PF_Status = ? "
+                           "SET PF_Status = ? ,"
+                           "PF_Checkdate = now() "
                            "WHERE PF_ID = ? ",
                            (status, db_id))
         else:
             cursor.execute("UPDATE PartitionFunctions "
-                           "SET PF_Status = ? "
+                           "SET PF_Status = ? ,"
+                           "PF_Checkdate = now() "
                            "WHERE PF_SpeciesID = ? ",
                            (status, species_id))
         self.conn.commit()
