@@ -774,18 +774,20 @@ class Database(object):
         """
         cursor = self.conn.cursor()
         if status is not None:
-            cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, "
-                           "PF_Recommendation, PF_Status, PF_Createdate, "
+            cursor.execute("SELECT PF_ID, PF_Name, PF_SpeciesID, "
+                           "PF_VamdcSpeciesID, PF_Recommendation, "
+                           "PF_Status, PF_Createdate, "
                            "PF_Checkdate FROM Partitionfunctions "
                            "WHERE PF_Status = ?", (status,))
         else:
-            cursor.execute("SELECT PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
+            cursor.execute("SELECT PF_ID, PF_Name, PF_SpeciesID, PF_VamdcSpeciesID, \
                             PF_Recommendation, PF_Status, PF_Createdate, \
                             PF_Checkdate FROM Partitionfunctions")
         rows = cursor.fetchall()
         for row in rows:
-            print("%-10s %-60s %20s %10s %10s %s %s" %
-                  (row[1], row[0], row[2], row[3], row[4], row[5], row[6]))
+            print("%-5s %-10s %-60s %20s %10s %10s %s %s"
+                  % (row[0], row[2], row[1], row[3], row[4],
+                     row[5], row[6], row[7]))
 
     def delete_species(self, speciesid):
         """
@@ -2457,3 +2459,31 @@ class Database(object):
         except Exception:
             url = None
         return url
+
+    def update_recommendation(self, id):
+        """
+        Updates the recommendation for an entry.
+        """
+        is_recommended = r.get_recommendation(id)
+        if is_recommended is None:
+            return
+
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE Partitionfunctions "
+                       "SET PF_Recommendation = ? "
+                       "WHERE PF_SpeciesID = ? ",
+                       (is_recommended, id))
+        self.conn.commit()
+        cursor.close()
+
+    def update_all_recommendations(self):
+        """
+        Loops through all the entries and checks if they are recommended
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT DISTINCT PF_SpeciesID "
+                       "FROM Partitionfunctions ")
+
+        rows = cursor.fetchall()
+        for row in rows:
+            self.update_recommendation(row[0])

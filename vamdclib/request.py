@@ -490,3 +490,27 @@ def do_species_data_request(
         print("Query failed: %s" % str(e))
         return None
     return result
+
+
+def get_recommendation(id):
+    """
+    The request has to be done again later.
+
+    :param token: species-id
+    """
+
+    url = "cdms.astro.uni-koeln.de"
+    conn = HTTPSConnection(url, timeout=settings.TIMEOUT)
+
+    conn.request("GET", "/cdms/portal/recommendation/%s/" % str(id))
+    res = conn.getresponse()
+    data = res.read().decode('utf-8')
+
+    if data.lower() == 'true':
+        is_recommended = True
+    elif data.lower() == 'false':
+        is_recommended = False
+    else:
+        is_recommended = None
+
+    return is_recommended
