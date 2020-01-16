@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import sys
-import os
 
 import numpy
 
@@ -292,6 +291,7 @@ def quantumnumbers__init__(self, xml):
 
     self.qn_string = ""
     self.vibstate = ""
+    self.elecstate = "X"
 
     Model.__init__(self, xml)
 
@@ -305,6 +305,9 @@ def quantumnumbers__init__(self, xml):
 
         if isVibrationalStateLabel(label) and int(value) != 0:
             self.vibstate += "%s=%s, " % (str(label), str(value))
+
+        if isElecStateLabel(label):
+            self.elecstate = "%s" % (str(value))
         # remove last ', ' from the string
     if self.vibstate == '':
         self.vibstate = 'v=0'
@@ -356,6 +359,15 @@ def isVibrationalStateLabel(label):
         return True
     except ValueError:
         return False
+
+def isElecStateLabel(label):
+    """
+    Checks if the label defines an electronic state
+    """
+    if label != 'ElecStateLabel':
+        return False
+    else:
+        return True
 
 
 def atomqn__init__(self, xml):

@@ -144,7 +144,7 @@ class PFrow(object):
                 setattr(self, ck, kwds[ck])
 
     def __str__(self):
-        return ("%7d %12s %-20s %-40s %-40s %-30s %20s %10s%10s%4s"
+        return ("%7d %12s %-20s %-40s %-40s %-30s %20s %5s %10s%10s%4s"
                 % (self.id,
                    self.species_id,
                    self.name,
@@ -152,6 +152,7 @@ class PFrow(object):
                    self.ordinarystructuralformula,
                    self.chemicalname,
                    self.vibstate,
+                   self.elecstate,
                    self.hfs,
                    self.nsi,
                    self.recommendation))
@@ -222,20 +223,49 @@ class Transitions(list):
     def __filter__(self, **kwds):
         # remove old data
         # self.__init__()
+        sql_where = []
+        sql_fields = []
+
+        if 'upper_state_quantumnumbers' in kwds:
+            usq = kwds.pop('upper_state_quantumnumbers')
+            if '%' in usq:
+                sql_where.append("T_UpperStateQuantumNumbers like ? ")
+                sql_fields.append(usq)
+            else:
+                sql_where.append("T_UpperStateQuantumNumbers = ? ")
+                sql_fields.append(usq)
+
+        if 'lower_state_quantumnumbers' in kwds:
+            lsq = kwds.pop('lower_state_quantumnumbers')
+            if '%' in lsq:
+                sql_where.append("T_LowerStateQuantumNumbers like ? ")
+                sql_fields.append(lsq)
+            else:
+                sql_where.append("T_LowerStateQuantumNumbers = ? ")
+                sql_fields.append(lsq)
 
         sdb = Database()
         # ids = sdb.filter_species(**kwds)
         ids = Species(**kwds).ids()
+        sql_fields = ids + sql_fields
+
+        sql = ("SELECT T_ID, T_PF_ID, T_Name, T_Frequency, "
+               "       T_Intensity, T_EinsteinA, T_OscillatorStrength, "
+               "       T_Uncertainty, T_EnergyLower, T_UpperStateDegeneracy, "
+               "       T_NuclearSpinIsomer, T_HFS, T_Case, "
+               "       T_UpperStateQuantumNumbers, "
+               "       T_LowerStateQuantumNumbers "
+               "       FROM Transitions WHERE T_PF_ID in (%s)"
+               % ','.join('?'*len(ids)))
+
+        if len(sql_fields) > len(ids):
+            sql_where = ' AND ' + ' AND '.join(sql_where)
+        else:
+            sql_where = ''
 
         cursor = sdb.conn.cursor()
-        cursor.execute("SELECT T_ID, T_PF_ID, T_Name, T_Frequency, "
-                       "T_Intensity, T_EinsteinA, T_OscillatorStrength, "
-                       "T_Uncertainty, T_EnergyLower, T_UpperStateDegeneracy, "
-                       "T_NuclearSpinIsomer, T_HFS, T_Case, "
-                       "T_UpperStateQuantumNumbers, "
-                       "T_LowerStateQuantumNumbers "
-                       "FROM Transitions WHERE T_PF_ID in (%s)"
-                       % ','.join('?'*len(ids)), ids)
+        cursor.execute(sql + sql_where, sql_fields)
+
         rows = cursor.fetchall()
         for row in rows:
             t = TransitionRow()
@@ -300,6 +330,7 @@ class Species(list):
                        'structural_formula',
                        'hfs_level',
                        'vibstate',
+                       'elecstate',
                        'nsi',
                        'name',
                        'recommended']
@@ -331,8 +362,9 @@ class Species(list):
                "  PF_SpeciesID, PF_StoichiometricFormula, "
                "  PF_OrdinaryStructuralFormula, PF_ChemicalName, "
                "  PF_NuclearSpinIsomer, PF_HFS, PF_VibState, "
-               "  PF_ResourceID, PF_URL, PF_Comment, PF_Recommendation, "
-               "  PF_UUID, PF_DOI, PF_Status, PF_Createdate, PF_Checkdate "
+               "  PF_ElecState, PF_ResourceID, PF_URL, PF_Comment, "
+               "  PF_Recommendation, PF_UUID, PF_DOI, PF_Status, "
+               "  PF_Createdate, PF_Checkdate "
                " FROM Partitionfunctions ")
         sql_where = []
         sql_fields = []
@@ -373,6 +405,10 @@ class Species(list):
             sql_where.append("replace(PF_VibState,' ','') = ?")
             sql_fields.append(kwds.get('vibstate'))
 
+        if kwds.get('elecstate') is not None:
+            sql_where.append("replace(PF_ElecState,' ','') = ?")
+            sql_fields.append(kwds.get('elecstate'))
+
         if kwds.get('nsi') is not None:
             sql_where.append("PF_NuclearSpinIsomer = ?")
             sql_fields.append(kwds.get('nsi'))
@@ -397,15 +433,16 @@ class Species(list):
             s.nsi = row[7]
             s.hfs = row[8]
             s.vibstate = row[9]
-            s.resource_id = row[10]
-            s.url = row[11]
-            s.comment = row[12]
-            s.recommendation = row[12]
-            s.uuid = row[13]
-            s.doi = row[14]
-            s.status = row[15]
-            s.createdate = row[16]
-            s.checkdate = row[17]
+            s.elecstate = row[10]
+            s.resource_id = row[11]
+            s.url = row[12]
+            s.comment = row[13]
+            s.recommendation = row[14]
+            s.uuid = row[15]
+            s.doi = row[16]
+            s.status = row[17]
+            s.createdate = row[18]
+            s.checkdate = row[19]
 
             self.append(s)
 
@@ -486,6 +523,7 @@ class Database(object):
         PF_NuclearSpinIsomer TEXT,
         PF_HFS TEXT,
         PF_VibState TEXT,
+        PF_ElecState TEXT,
         PF_1_072 REAL,
         PF_1_148 REAL,
         PF_1_230 REAL,
@@ -686,7 +724,9 @@ class Database(object):
                                     name,
                                     nsi,
                                     state,
-                                    hfs):
+                                    hfs,
+                                    elecstate,
+                                    ):
         """
         Doublicate an entry to store information for hyperfine transitions.
         Partitionfunctions are the same if species-id and nuclear spin isomers
@@ -704,6 +744,7 @@ class Database(object):
                           PF_HFS,
                           PF_NuclearSpinIsomer,
                           PF_VibState,
+                          PF_ElecState,
                           PF_Recommendation,
                           PF_Comment,
                           PF_ResourceID,
@@ -722,6 +763,7 @@ class Database(object):
                            ?,
                            PF_NuclearSpinIsomer,
                            ?,
+                           ?,
                            PF_Recommendation,
                            PF_Comment,
                            PF_ResourceID,
@@ -735,7 +777,7 @@ class Database(object):
                          AND IFNULL(PF_NuclearSpinIsomer,'')=IFNULL(?,'')
                         LIMIT 1
                         """.format(fieldnames=SQL_TEMP_FIELDS),
-                       (hfs, state, species_id, nsi))
+                       (hfs, state, elecstate, species_id, nsi))
 
         self.conn.commit()
         db_id = cursor.lastrowid
@@ -871,7 +913,7 @@ class Database(object):
         self.conn.commit()
         cursor.close()
 
-    def update_pf_state(self, id, state, hfs, commit=True):
+    def update_pf_state(self, id, state, hfs, elecstate, commit=True):
         """
         Updates state and hyperfine structure information
         for new entries.
@@ -879,9 +921,10 @@ class Database(object):
         cursor = self.conn.cursor()
         cursor.execute("UPDATE PartitionFunctions "
                        "SET PF_VibState = ?, "
-                       "    PF_HFS = ? "
+                       "    PF_HFS = ? , "
+                       "    PF_ElecState = ? "
                        "WHERE PF_ID = ? ",
-                       (state, hfs, id))
+                       (state, hfs, elecstate, id))
         if commit:
             self.conn.commit()
         cursor.close()
@@ -1221,7 +1264,8 @@ class Database(object):
         cursor = self.conn.cursor()
         cursor.execute("SELECT PF_ID, PF_Name, PF_SpeciesID, "
                        "PF_VamdcSpeciesID, PF_NuclearSpinIsomer, "
-                       "PF_ResourceID, PF_VibState, PF_HFS, PF_Status "
+                       "PF_ResourceID, PF_VibState, PF_HFS, PF_Status, "
+                       "PF_ElecState "
                        "FROM Partitionfunctions "
                        "%s %s ORDER BY PF_VamdcSpeciesID, PF_SpeciesID"
                        % (where_species, where_nodes))
@@ -1244,7 +1288,11 @@ class Database(object):
                 db_hfs = None
             else:
                 db_hfs = row[7]
-            sidx = (db_species_id, db_nsi, db_vibstate, db_hfs)
+            if row[9] is None or len(row[9]) == 0:
+                db_elecstate = None
+            else:
+                db_elecstate = row[9]
+            sidx = (db_species_id, db_nsi, db_vibstate, db_hfs, db_elecstate)
             db_vamdcspecies_id = row[3]
 
             # get node instance
@@ -1386,12 +1434,18 @@ class Database(object):
                     # involved in the transition
                     t_state = self.getvibstatelabel(upper_state,
                                                     lower_state)
+                    t_elecstate = self.getelecstatelabel(upper_state,
+                                                         lower_state)
                     if len(t_state) == 0:
                         t_state = None
+                    if len(t_elecstate) == 0:
+                        t_elecstate = None
                     t_name = species_data[species_id].OrdinaryStructuralFormula
                 else:
                     t_name = self.createatomname(species_data[species_id])
                     t_state = None
+                    t_elecstate = None
+
                 t_name = t_name.strip()
 
                 # Get hyperfinestructure info if hfsInfo is None
@@ -1446,7 +1500,7 @@ class Database(object):
                     nsinames = [None]
 
                 for nsiName in nsinames:
-                    sidx = (t_species_id, nsiName, t_state, t_hfs)
+                    sidx = (t_species_id, nsiName, t_state, t_hfs, t_elecstate)
 
                     # update list of distinct species names.
                     if sidx not in transitions_processed:
@@ -1474,17 +1528,18 @@ class Database(object):
                         try:
                             # remove in dictionary
                             db_id = species_dict_id.pop(
-                                (sidx[0], sidx[1], None, None))
+                                (sidx[0], sidx[1], None, None, None))
                             if db_id > 0:
                                 # add again with new state value
                                 species_dict_id[sidx] = db_id
                                 # set state and hfs also in the database
-                                self.update_pf_state(db_id, sidx[2], sidx[3])
+                                self.update_pf_state(
+                                        db_id, sidx[2], sidx[3], sidx[4])
                                 # continue with whatever id was stored
                             else:
                                 # do nothing and add old value again
-                                species_dict_id[
-                                    (sidx[0], sidx[1], None, None)] = db_id
+                                species_dict_id[(sidx[0], sidx[1],
+                                                 None, None, None)] = db_id
                         except KeyError:
                             pass
 
@@ -1496,7 +1551,8 @@ class Database(object):
                                         sidx[0],
                                         sidx[1],
                                         sidx[2],
-                                        sidx[3])
+                                        sidx[3],
+                                        sidx[4])
 
                             species_dict_id[sidx] = db_id
                         except sqlite3.Error as e:
@@ -1821,7 +1877,14 @@ class Database(object):
         return t_state.strip()
 
     def getelecstatelabel(self, upper_state, lower_state):
-        pass
+        if (upper_state.QuantumNumbers.elecstate ==
+                lower_state.QuantumNumbers.elecstate):
+            t_state = str(upper_state.QuantumNumbers.elecstate).strip()
+        else:
+            t_state = "%s-%s" % (
+                    upper_state.QuantumNumbers.elecstate.strip(),
+                    lower_state.QuantumNumbers.elecstate.strip())
+        return t_state.strip()
 
     # *******************************************************************
     def createatomname(self, atom):
