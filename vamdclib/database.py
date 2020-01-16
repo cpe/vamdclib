@@ -91,6 +91,7 @@ def parse_name(name, delimiter=" "):
     nsi = None
     state = None
     hfs = None
+    elecstate = None
 
     # hyperfine info is attached at the end
     while len(data) > 0:
@@ -99,10 +100,15 @@ def parse_name(name, delimiter=" "):
             hfs = field
         elif 'v' in field:
             state = field
-        else:
+        elif (field == 'ortho'
+              or field == 'para'
+              or field == 'A'
+              or field == 'E'):
             nsi = field
+        else:
+            elecstate = field
 
-    return name, nsi, state, hfs
+    return name, elecstate, nsi, state, hfs
 
 
 class PFrow(object):
@@ -335,7 +341,7 @@ class Species(list):
                        'name',
                        'recommended']
         if 'name' in kwds:
-            structural_formula, nsi, state, hfs = \
+            structural_formula, elecstate, nsi, state, hfs = \
                     parse_name(kwds.get('name'), delimiter=';')
             if structural_formula is not None \
                     and 'structural_formula' not in kwds:
@@ -346,6 +352,8 @@ class Species(list):
                 kwds['vibstate'] = state
             if hfs is not None and 'hfs_level' not in kwds:
                 kwds['hfs_level'] = hfs
+            if elecstate is not None and 'elecstate' not in kwds:
+                kwds['elecstate'] = elecstate
 
         for k in kwds:
             if k not in filter_opts:
@@ -356,6 +364,8 @@ class Species(list):
                                 )
             elif k == 'vibstate':
                 kwds['vibstate'] = kwds['vibstate'].replace(' ', '')
+            elif k == 'elecstate':
+                kwds['elecstate'] = kwds['elecstate'].replace(' ', '')
 
         cursor = sdb.conn.cursor()
         sql = ("SELECT PF_ID, PF_Name, PF_VamdcSpeciesID, "
@@ -1270,7 +1280,9 @@ class Database(object):
                        "%s %s ORDER BY PF_VamdcSpeciesID, PF_SpeciesID"
                        % (where_species, where_nodes))
 
+        # lookup table for specie_ids and corresponding nodes
         species_dict = {}
+        # Lookup-table for pf_id's
         species_dict_id = {}
         for row in cursor.fetchall():
             db_id = row[0]
@@ -1523,7 +1535,8 @@ class Database(object):
 
                     db_id = species_dict_id.get(sidx)
 
-                    # maybe the state is None
+                    # maybe states and hfs is still None
+                    # (new species) -> Update these informations
                     if db_id is None:
                         try:
                             # remove in dictionary
@@ -1542,8 +1555,51 @@ class Database(object):
                                                  None, None, None)] = db_id
                         except KeyError:
                             pass
+                    # Maybe the electronic State info was updated:
+                    # if all other values agree and the existing entry has
+                    # no transitions to import, then it is most likely that
+                    # only the electronic state was updated. In case that
+                    # these transitions will be processed later, the old
+                    # entry will get a new database-id, which should not matter
+                    # at all (Usually there is only one electronic state per
+                    # species-id (CDMS/JPL). The same could happen for the
+                    # vibrational state or both states at the same time
+                    sidx_match_without_elec = None
+                    sidx_match_without_vib = None
+                    sidx_match_without_both = None
+                    for sidx_stored in species_dict_id:
+                        sidx_match = tuple(i == j
+                                           for i, j in zip(sidx_stored, sidx))
 
-                    if db_id is None:
+                        if (sidx_match == (True, True, True, True, False)
+                                and sidx_stored not in transitions_processed):
+                            sidx_match_without_elec = sidx_stored
+
+                        if (sidx_match == (True, True, False, True, True)
+                                and sidx_stored not in transitions_processed):
+                            sidx_match_without_vib = sidx_stored
+
+                        if (sidx_match == (True, True, False, True, False)
+                                and sidx_stored not in transitions_processed):
+                            sidx_match_without_elec = sidx_stored
+
+                    # assign new new sidx to the old entry
+                    # priority : First elec, then vib, last both
+                    if sidx_match_without_elec is not None:
+                        db_id = species_dict_id.pop(sidx_match_without_elec)
+                    elif sidx_match_without_vib is not None:
+                        db_id = species_dict_id.pop(sidx_match_without_vib)
+                    elif sidx_match_without_both is not None:
+                        db_id = species_dict_id.pop(sidx_match_without_both)
+
+                    if db_id is not None:
+                        # assign new sidx
+                        species_dict_id[sidx] = db_id
+                        # set states also in the database
+                        self.update_pf_state(
+                                db_id, sidx[2], sidx[3], sidx[4])
+                    else:
+                        # New Row has to be created
                         try:
                             # entry does not exist yet, so creeate it.
                             db_id = self.doublicate_pf_entry_for_hfs(

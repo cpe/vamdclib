@@ -168,7 +168,16 @@ class Request(object):
         """
         self.xml = None
         # self.get_xml(self.Source.Requesturl)
-        url = self.baseurl + self.querypath
+        try:
+            url = self.baseurl + self.querypath
+        except TypeError as e:
+            if self.baseurl is None:
+                raise NameError("Node or node's url is not found!")
+            elif self.querypath is None:
+                raise NameError("Query not found!")
+            else:
+                raise TypeError(e)
+
         urlobj = urlsplit(url)
 
         if urlobj.scheme == 'https':
@@ -220,10 +229,13 @@ class Request(object):
             else:
                 result = None
 
+        if result is None:
+            return None
+
         # try to get an parse headers
         try:
             headers = res.getheaders()
-        except:
+        except Exception:
             headers = [("vamdc-count-species", 0),
                        ("vamdc-count-states", 0),
                        ("vamdc-truncated", 0),

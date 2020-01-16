@@ -13,6 +13,12 @@ else:
 
 NAMESPACE = 'http://vamdc.org/xml/xsams/1.0'
 
+TERMSYMBOLS_DICT = {0: 'SIGMA',
+                    1: 'PI',
+                    2: 'DELTA',
+                    3: 'PHI'
+                    }
+
 # #######################################################################
 # Dictionaries for the Model-Layout
 #
@@ -292,6 +298,11 @@ def quantumnumbers__init__(self, xml):
     self.qn_string = ""
     self.vibstate = ""
     self.elecstate = "X"
+    elecLambda = None
+    elecInv = None
+    elecRefl = None
+    elecSym = None
+    s = None
 
     Model.__init__(self, xml)
 
@@ -306,8 +317,38 @@ def quantumnumbers__init__(self, xml):
         if isVibrationalStateLabel(label) and int(value) != 0:
             self.vibstate += "%s=%s, " % (str(label), str(value))
 
-        if isElecStateLabel(label):
-            self.elecstate = "%s" % (str(value))
+        try:
+            if label == 'ElecStateLabel':
+                self.elecstate = "%s" % (str(value))
+            elif label == 'elecSym':
+                elecSym = str(value)
+            elif label == 'Lambda':
+                elecLambda = int(value)
+            elif label == 'elecInv':
+                elecInv = str(value)
+            elif label == 'elecRefl':
+                elecRefl = str(value)
+            elif label == 'S':
+                s = float(value)
+        except Exception as e:
+            print("Electronic State Error: %s" % e)
+
+    # attach Term Symbol if Lambda is given
+    if elecLambda is not None:
+        try:
+            self.elecstate += "%d" % (2*s+1) if s is not None else ''
+            self.elecstate += TERMSYMBOLS_DICT[elecLambda]
+            self.elecstate += elecRefl if elecRefl is not None else ''
+            self.elecstate += elecInv if elecInv is not None else ''
+        except Exception as e:
+            print("Term Symbol Error: %s" % e)
+    elif elecSym is not None:
+        try:
+            self.elecstate += "%d" % (2*s+1) if s is not None else ''
+            self.elecstate += elecSym
+        except Exception as e:
+            print("Term Symbol Error: %s" % e)
+
         # remove last ', ' from the string
     if self.vibstate == '':
         self.vibstate = 'v=0'
@@ -360,11 +401,17 @@ def isVibrationalStateLabel(label):
     except ValueError:
         return False
 
+
 def isElecStateLabel(label):
     """
     Checks if the label defines an electronic state
     """
-    if label != 'ElecStateLabel':
+    if label in ('ElecStateLabel',
+                 'Lambda',
+                 'S',
+                 'elecInv',
+                 'elecRef',
+                 'elecSym'):
         return False
     else:
         return True
