@@ -1705,19 +1705,20 @@ class Database(object):
             # ------------------------------------------------------------------------------------------------------
             # delete transitions for all entries where an error occured during
             # the insert
-            for id in species_with_error:
+            if species_id in species_with_error:
                 print(" -- Species {id} has not been updated due to an error "
-                      .format(id=str(id)))
+                      .format(id=str(species_id)))
                 try:
                     cursor.execute("DELETE FROM Transitions WHERE T_PF_ID in "
                                    "(SELECT PF_ID FROM Partitionfunctions "
                                    " WHERE PF_SpeciesID=? "
-                                   " AND PF_Status='Updating')", (str(id),))
+                                   " AND PF_Status='Updating')",
+                                   (str(species_id),))
                 except Exception as e:
                     print(" -> Tried to remove transitions for that species, "
                           "but an exception occured:\n %s" % str(e))
 
-                self.set_status(id, 'Update Failed')
+                self.set_status(species_id, 'Update Failed')
 
             # ------------------------------------------------------------------------------------------------------
             # insert specie in Partitionfunctions (header) table
@@ -1760,6 +1761,11 @@ class Database(object):
 
             self.conn.commit()
             cursor.close()
+        # delete transitions for all entries where an error occured during
+        # the insert
+        for id in species_with_error:
+            print(" -- Species {id} has not been updated due to an error "
+                  .format(id=str(id)))
 
     def update_database(
             self,
