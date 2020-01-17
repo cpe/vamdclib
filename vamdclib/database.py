@@ -412,12 +412,20 @@ class Species(list):
                 sql_fields.append(hfs)
 
         if kwds.get('vibstate') is not None:
-            sql_where.append("replace(PF_VibState,' ','') = ?")
-            sql_fields.append(kwds.get('vibstate'))
+            if '%' in kwds.get('vibstate'):
+                sql_where.append("replace(PF_VibState,' ','') like ?")
+                sql_fields.append(kwds.get('vibstate'))
+            else:
+                sql_where.append("replace(PF_VibState,' ','') = ?")
+                sql_fields.append(kwds.get('vibstate'))
 
         if kwds.get('elecstate') is not None:
-            sql_where.append("replace(PF_ElecState,' ','') = ?")
-            sql_fields.append(kwds.get('elecstate'))
+            if '%' in kwds.get('elecstate'):
+                sql_where.append("replace(PF_ElecState,' ','') like ?")
+                sql_fields.append(kwds.get('elecstate'))
+            else:
+                sql_where.append("replace(PF_ElecState,' ','') = ?")
+                sql_fields.append(kwds.get('elecstate'))
 
         if kwds.get('nsi') is not None:
             sql_where.append("PF_NuclearSpinIsomer = ?")
@@ -1201,26 +1209,47 @@ class Database(object):
 
     def delete_species(self, speciesid):
         """
-        Deletes species stored in the database
+        Deletes data related to a species defined by its species-id
+        (All entries, e.g. all states, hfs, ...
 
         :ivar str speciesid: Id of the Specie
         """
         deleted_species = []
         cursor = self.conn.cursor()
-        cursor.execute("SELECT PF_Name FROM Partitionfunctions WHERE "
+        cursor.execute("SELECT PF_ID FROM Partitionfunctions WHERE "
                        "PF_SpeciesID = ?", (speciesid, ))
         rows = cursor.fetchall()
         for row in rows:
             deleted_species.append(row[0])
-            cursor.execute("DELETE FROM Transitions WHERE T_Name = ?",
+            cursor.execute("DELETE FROM Transitions WHERE T_PF_ID = ?",
                            (row[0], ))
-            cursor.execute("DELETE FROM Partitionfunctions WHERE PF_Name = ?",
+            cursor.execute("DELETE FROM Partitionfunctions WHERE PF_ID = ?",
                            (row[0], ))
 
         self.conn.commit()
         cursor.close()
 
         return deleted_species
+
+    def delete_species_entry(self, id):
+        """
+        Deletes data for an entry in the Partitionfunctions-Table and related
+        data in Transitions.
+
+        :ivar int id: Id of the Specie-Entry (PF_ID)
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT PF_ID FROM Partitionfunctions WHERE "
+                       "PF_ID = ?", (id, ))
+        rows = cursor.fetchall()
+        for row in rows:
+            cursor.execute("DELETE FROM Transitions WHERE T_PF_ID = ?",
+                           (row[0], ))
+            cursor.execute("DELETE FROM Partitionfunctions WHERE PF_ID = ?",
+                           (row[0], ))
+
+        self.conn.commit()
+        cursor.close()
 
     def update_species_data(self, species=None, node=None, force_update=False):
         """
@@ -1320,7 +1349,13 @@ class Database(object):
             if force_update or db_status.lower() in (
                     'new', 'update available', 'update failed',
                     'updating'):
-                species_dict_id[sidx] = db_id
+                if sidx in species_dict_id:
+                    print("Doublicate entry found for specie %s: "
+                          "Deleting ID: %d"
+                          % (db_species_id, db_id))
+                    self.delete_species_entry(db_id)
+                else:
+                    species_dict_id[sidx] = db_id
 
                 if db_species_id in species_dict \
                         and (node, db_vamdcspecies_id) != \
@@ -1555,6 +1590,7 @@ class Database(object):
                                                  None, None, None)] = db_id
                         except KeyError:
                             pass
+
                     # Maybe the electronic State info was updated:
                     # if all other values agree and the existing entry has
                     # no transitions to import, then it is most likely that
@@ -1564,33 +1600,41 @@ class Database(object):
                     # at all (Usually there is only one electronic state per
                     # species-id (CDMS/JPL). The same could happen for the
                     # vibrational state or both states at the same time
-                    sidx_match_without_elec = None
-                    sidx_match_without_vib = None
-                    sidx_match_without_both = None
-                    for sidx_stored in species_dict_id:
-                        sidx_match = tuple(i == j
-                                           for i, j in zip(sidx_stored, sidx))
+                    if db_id is None:
+                        sidx_match_without_elec = None
+                        sidx_match_without_vib = None
+                        sidx_match_without_both = None
+                        for sidx_stored in species_dict_id:
+                            sidx_match = tuple(i == j
+                                               for i, j in
+                                               zip(sidx_stored, sidx))
 
-                        if (sidx_match == (True, True, True, True, False)
-                                and sidx_stored not in transitions_processed):
-                            sidx_match_without_elec = sidx_stored
+                            if (sidx_match == (True, True, True, True, False)
+                                    and sidx_stored
+                                    not in transitions_processed):
+                                sidx_match_without_elec = sidx_stored
 
-                        if (sidx_match == (True, True, False, True, True)
-                                and sidx_stored not in transitions_processed):
-                            sidx_match_without_vib = sidx_stored
+                            if (sidx_match == (True, True, False, True, True)
+                                    and sidx_stored
+                                    not in transitions_processed):
+                                sidx_match_without_vib = sidx_stored
 
-                        if (sidx_match == (True, True, False, True, False)
-                                and sidx_stored not in transitions_processed):
-                            sidx_match_without_elec = sidx_stored
+                            if (sidx_match == (True, True, False, True, False)
+                                    and sidx_stored
+                                    not in transitions_processed):
+                                sidx_match_without_elec = sidx_stored
 
-                    # assign new new sidx to the old entry
-                    # priority : First elec, then vib, last both
-                    if sidx_match_without_elec is not None:
-                        db_id = species_dict_id.pop(sidx_match_without_elec)
-                    elif sidx_match_without_vib is not None:
-                        db_id = species_dict_id.pop(sidx_match_without_vib)
-                    elif sidx_match_without_both is not None:
-                        db_id = species_dict_id.pop(sidx_match_without_both)
+                        # assign new new sidx to the old entry
+                        # priority : First elec, then vib, last both
+                        if sidx_match_without_elec is not None:
+                            db_id = species_dict_id.pop(
+                                    sidx_match_without_elec)
+                        elif sidx_match_without_vib is not None:
+                            db_id = species_dict_id.pop(
+                                    sidx_match_without_vib)
+                        elif sidx_match_without_both is not None:
+                            db_id = species_dict_id.pop(
+                                    sidx_match_without_both)
 
                     if db_id is not None:
                         # assign new sidx
@@ -1653,6 +1697,8 @@ class Database(object):
                     except Exception as e:
                         print("Transition has not been inserted:\n Error: %s"
                               % e)
+                        species_with_error.append(t_species_id)
+                        continue
             print("\n")
             # ------------------------------------------------------------------------------------------------------
 
@@ -1699,6 +1745,19 @@ class Database(object):
                 self.set_status(sidx[0],
                                 'Up-To-Date',
                                 species_dict_id.get(sidx))
+            # remove entries with status 'updating', but where not processed.
+            # This should not happen, but in case there are doublicates with
+            # different elecstates for example i could happen.
+            cursor.execute("SELECT PF_ID FROM Partitionfunctions "
+                           "WHERE PF_SpeciesID = ? "
+                           "AND PF_Status = 'Updating'", (species_id,))
+            rows_to_delete = cursor.fetchall()
+            for row_td in rows_to_delete:
+                print("-- Clean database: Entry id=%d was untouched "
+                      "and is not in a clean state. It will be deleted."
+                      % row_td[0])
+                self.delete_species_entry(row_td[0])
+
             self.conn.commit()
             cursor.close()
 
